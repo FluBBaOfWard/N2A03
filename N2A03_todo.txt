@@ -1,0 +1,8 @@
+N2A03 To do
+-----------
+
+	Fix noise generation.
+	DMCA.
+	Sweeps.
+	Triangle.
+

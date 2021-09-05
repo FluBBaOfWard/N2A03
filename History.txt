@@ -1,0 +1,13 @@
+N2A03 revision history
+-=-=-=-=-=-=-=-=-=-=-=-=-=-
+
+
+V0.0.5 - 2021-03-16 (FluBBa)
+	Added load/save state.
+
+V0.0.1 - 2018-06-10 (FluBBa)
+	Sounds come out that are at the correct frequency.
+
+V0.0.0 - 2018-05-14 (FluBBa)
+	Started Coding.
+
