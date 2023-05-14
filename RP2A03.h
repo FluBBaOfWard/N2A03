@@ -5,7 +5,7 @@
 extern "C" {
 #endif
 
-#include "../ARM6502/M6502.h"
+#include "ARM6502/M6502.h"
 
 typedef struct {
 	// rp2A03State:					;@

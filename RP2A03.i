@@ -1,7 +1,7 @@
 ;@ ASM header for the RP2A03/RP2A07 emulator
 ;@
 
-#include "../ARM6502/M6502.i"
+#include "ARM6502/M6502.i"
 						;@ RP2A03.s
 	rp2a03ptr	.req r12
 	.struct 0
