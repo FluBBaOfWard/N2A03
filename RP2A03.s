@@ -2,7 +2,7 @@
 
 #ifdef __arm__
 
-#include "N2A03.i"
+#include "RP2A03.i"
 
 	.global rp2A03Reset
 	.global rp2A03SetIRQPin
