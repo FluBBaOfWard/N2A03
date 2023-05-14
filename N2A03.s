@@ -3,16 +3,16 @@
 #ifdef __arm__
 
 #include "N2A03.i"
-//#include "../ARM6502/M6502.i"		;@ Might be needed later for SPR DMA read
 
-	.global n2A03Reset
-	.global n2A03SaveState
-	.global n2A03LoadState
-	.global n2A03GetStateSize
-	.global n2A03Frame
-	.global n2A03Mixer
-	.global n2A03Read
-	.global n2A03Write
+	.global rp2A03Reset
+	.global rp2A03SetIRQPin
+	.global rp2A03SaveState
+	.global rp2A03LoadState
+	.global rp2A03GetStateSize
+	.global rp2A03Frame
+	.global rp2A03Mixer
+	.global rp2A03Read
+	.global rp2A03Write
 
 .equ PFEED_SN,	0x4000			;@ Periodic Noise Feedback
 .equ WFEED_SN,	0x6000			;@ White Noise Feedback
@@ -33,13 +33,13 @@
 ;@ r10 = ch2 volumes.
 ;@ r11 = ch3 volumes.
 ;@ lr  = mixer reg.
-;@ r12  = n2a03ptr.
+;@ r12  = rp2a03ptr.
 ;@----------------------------------------------------------------------------
-n2A03Mixer:				;@ r0=len, r1=dest, r12=n2a03ptr
+rp2A03Mixer:				;@ r0=len, r1=dest, r12=rp2a03ptr
 ;@----------------------------------------------------------------------------
 	mov r0,r0,lsl#2
 	stmfd sp!,{r4-r11,lr}
-	ldmia n2a03ptr,{r2-r11}			;@ Load freq/addr0-3, rng, noisefb, vol0-3
+	ldmia rp2a03ptr,{r2-r11}	;@ Load freq/addr0-3, rng, noisefb, vol0-3
 ;@----------------------------------------------------------------------------
 mixLoop:
 	mov lr,#0x80000000
@@ -74,7 +74,7 @@ innerMixLoop:
 	strpl lr,[r1],#4
 	bgt mixLoop
 
-	stmia n2a03ptr,{r2-r6}				;@ Writeback freq,addr,rng
+	stmia rp2a03ptr,{r2-r6}		;@ Writeback freq,addr,rng
 	ldmfd sp!,{r4-r11,lr}
 	bx lr
 ;@----------------------------------------------------------------------------
@@ -82,31 +82,27 @@ innerMixLoop:
 	.section .text
 	.align 2
 ;@----------------------------------------------------------------------------
-n2A03Reset:					;@ n2a03ptr = r12 = pointer to struct, r0=irq routine
+rp2A03Reset:				;@ rp2a03ptr = r12 = pointer to struct
 ;@----------------------------------------------------------------------------
-	stmfd sp!,{r0,r4,lr}
+	stmfd sp!,{r4,lr}
 
-	mov r0,n2a03ptr
-	ldr r1,=n2a03Size/4
-	bl memclr_					;@ Clear VDP state
-
-	ldmfd sp!,{r0}
-	cmp r0,#0
-	adreq r0,SetPinDummy
-	str r0,[n2a03ptr,#irqRoutine]
+	add r0,rp2a03ptr,#rp2A03State
+	ldr r1,=(rp2a03Size-rp2A03State)/4
+	bl memclr_					;@ Clear APU state
 
 	mov r0,#PFEED_SN			;@ Periodic noise
-	strh r0,[n2a03ptr,#rng]
+	str r0,[rp2a03ptr,#rng]
 	mov r0,#WFEED_SN			;@ White noise
-	strh r0,[n2a03ptr,#noiseFB]
+	str r0,[rp2a03ptr,#noiseFB]
 
 	ldmfd sp!,{r4,lr}
 	bx lr
 ;@----------------------------------------------------------------------------
-n2A03SaveState:			;@ In r0=destination, r1=n2a03ptr. Out r0=state size.
-	.type   n2A03SaveState STT_FUNC
+rp2A03SaveState:		;@ In r0=destination, r1=rp2a03ptr. Out r0=state size.
+	.type   rp2A03SaveState STT_FUNC
 ;@----------------------------------------------------------------------------
-	mov r2,#n2a03Size
+	add r1,r1,#rp2A03State
+	mov r2,#rp2a03Size-rp2A03State
 	stmfd sp!,{r2,lr}
 
 	bl memcpy
@@ -114,33 +110,39 @@ n2A03SaveState:			;@ In r0=destination, r1=n2a03ptr. Out r0=state size.
 	ldmfd sp!,{r0,lr}
 	bx lr
 ;@----------------------------------------------------------------------------
-n2A03LoadState:			;@ In r0=n2a03ptr, r1=source. Out r0=state size.
-	.type   n2A03LoadState STT_FUNC
+rp2A03LoadState:			;@ In r0=rp2a03ptr, r1=source. Out r0=state size.
+	.type   rp2A03LoadState STT_FUNC
 ;@----------------------------------------------------------------------------
 	stmfd sp!,{lr}
-	mov r2,#n2a03Size
+	add r0,r0,#rp2A03State
+	mov r2,#rp2a03Size-rp2A03State
 	bl memcpy
 
 	ldmfd sp!,{lr}
 ;@----------------------------------------------------------------------------
-n2A03GetStateSize:		;@ Out r0=state size.
-	.type   n2A03GetStateSize STT_FUNC
+rp2A03GetStateSize:			;@ Out r0=state size.
+	.type   rp2A03GetStateSize STT_FUNC
 ;@----------------------------------------------------------------------------
-	mov r0,#n2a03Size
+	mov r0,#rp2a03Size-rp2A03State
 	bx lr
 
 ;@----------------------------------------------------------------------------
-n2A03Frame:					;@ n2a03ptr = r12 = pointer to struct
+rp2A03Frame:				;@ rp2a03ptr = r12 = pointer to struct
 ;@----------------------------------------------------------------------------
 	stmfd sp!,{r4,lr}
 	ldmfd sp!,{r4,lr}
 	bx lr
 ;@----------------------------------------------------------------------------
-SetPinDummy:
+rp2A03SetIRQPin:
 ;@----------------------------------------------------------------------------
-	bx lr
+	cmp r0,#0
+	ldrb r0,[rp2a03ptr,#rp2A03IrqPending]
+	biceq r0,r0,#0x04
+	orrne r0,r0,#0x04
+	strb r0,[rp2a03ptr,#rp2A03IrqPending]
+	b m6502SetIRQPin
 ;@----------------------------------------------------------------------------
-n2A03Read:					;@ I/O read  (0x4000-0x4017)
+rp2A03Read:					;@ I/O read  (0x4000-0x4017)
 ;@----------------------------------------------------------------------------
 	sub r1,r1,#0x4000
 
@@ -153,34 +155,37 @@ n2A03Read:					;@ I/O read  (0x4000-0x4017)
 ;@---------------------------
 	b empty_IO_R
 ;@----------------------------------------------------------------------------
-_4015R:			;@ $4015: Status read
+_4015R:						;@ $4015: Status read
 ;@----------------------------------------------------------------------------
-	stmfd sp!,{r2,lr}
-	mov r0,#0
-	ldr r2,[n2a03ptr,#irqRoutine]			;@ Clear IRQ pin on CPU
-	blx r2
-	ldmfd sp!,{r2,lr}
+	stmfd sp!,{lr}
+	ldrb r0,[rp2a03ptr,#rp2A03IrqPending]
+	bic r0,r0,#0x01				;@ Frame IRQ
+	strb r0,[rp2a03ptr,#rp2A03IrqPending]
+	bl m6502SetIRQPin			;@ Update IRQ pin on CPU
+	ldmfd sp!,{lr}
 	// Check remaining length of all channels + interrupts
-	ldrb r0,[n2a03ptr,#n2A03Status]
+	ldrb r0,[rp2a03ptr,#rp2A03Status]
+	bic r1,r0,#0xC0				;@ Clear IRQ status
+	strb r1,[rp2a03ptr,#rp2A03Status]
 	bx lr
 ;@----------------------------------------------------------------------------
-_4016R:			;@ $4016: Input 0 read
+_4016R:						;@ $4016: Input 0 read
 ;@----------------------------------------------------------------------------
-	ldrb r0,[n2a03ptr,#input0]
+	ldrb r0,[rp2a03ptr,#input0]
 	bx lr
 ;@----------------------------------------------------------------------------
-_4017R:			;@ $4017: Input 1 read
+_4017R:						;@ $4017: Input 1 read
 ;@----------------------------------------------------------------------------
-	ldrb r0,[n2a03ptr,#input1]
+	ldrb r0,[rp2a03ptr,#input1]
 	bx lr
 ;@----------------------------------------------------------------------------
 
 ;@----------------------------------------------------------------------------
-n2A03Write:					;@ I/O write  (0x4000-0x4017)
+rp2A03Write:					;@ I/O write  (0x4000-0x4017)
 ;@----------------------------------------------------------------------------
 	sub r1,r1,#0x4000
 	cmp r1,#0x18
-	add r2,n2a03ptr,#n2a03Regs
+	add r2,rp2a03ptr,#rp2A03Regs
 	strbmi r0,[r2,r1]
 	ldrmi pc,[pc,r1,lsl#2]
 	b empty_IO_W
@@ -217,7 +222,7 @@ _4000W:						;@ Pulse 1 Duty, Volume
 	orr r0,r0,r0,lsl#4
 	orr r0,r0,r0,lsl#16
 	mov r0,r0,lsl#4
-	str r0,[n2a03ptr,#ch0Volume]
+	str r0,[rp2a03ptr,#ch0Volume]
 	bx lr
 ;@----------------------------------------------------------------------------
 _4001W:						;@ Pulse 1 Sweep unit
@@ -232,10 +237,10 @@ _4002W:						;@ Pulse 1 Frequency (low)
 _4003W:						;@ Pulse 1 Length, Frequency (high)
 ;@----------------------------------------------------------------------------
 setFrq0:
-	ldrh r0,[n2a03ptr,#ch0Frequency]
+	ldrh r0,[rp2a03ptr,#ch0Frequency]
 	mov r0,r0,lsl#5
 	rsb r0,r0,#1
-	strh r0,[n2a03ptr,#ch0Frq]
+	strh r0,[rp2a03ptr,#ch0Frq]
 	bx lr
 
 ;@----------------------------------------------------------------------------
@@ -245,7 +250,7 @@ _4004W:						;@ Pulse 2 Duty, Volume
 	orr r0,r0,r0,lsl#4
 	orr r0,r0,r0,lsl#16
 	mov r0,r0,lsl#4
-	str r0,[n2a03ptr,#ch1Volume]
+	str r0,[rp2a03ptr,#ch1Volume]
 	bx lr
 ;@----------------------------------------------------------------------------
 _4005W:						;@ Pulse 2 Sweep unit
@@ -260,10 +265,10 @@ _4006W:						;@ Pulse 2 Frequency (low)
 _4007W:						;@ Pulse 2 Length, Frequency (high)
 ;@----------------------------------------------------------------------------
 setFrq1:
-	ldrh r0,[n2a03ptr,#ch1Frequency]
+	ldrh r0,[rp2a03ptr,#ch1Frequency]
 	mov r0,r0,lsl#5
 	rsb r0,r0,#1
-	strh r0,[n2a03ptr,#ch1Frq]
+	strh r0,[rp2a03ptr,#ch1Frq]
 	bx lr
 
 ;@----------------------------------------------------------------------------
@@ -273,7 +278,7 @@ _4008W:						;@ Triangle Linear counter
 	orr r0,r0,r0,lsl#4
 	orr r0,r0,r0,lsl#16
 	mov r0,r0,lsl#4
-	str r0,[n2a03ptr,#ch2Volume]
+	str r0,[rp2a03ptr,#ch2Volume]
 	bx lr
 ;@----------------------------------------------------------------------------
 _4009W:						;@ Unused
@@ -287,10 +292,10 @@ _400AW:						;@ Triangle Frequency (low)
 _400BW:						;@ Triangle Length, Frequency (high)
 ;@----------------------------------------------------------------------------
 setFrq2:
-	ldrh r0,[n2a03ptr,#ch2Frequency]
+	ldrh r0,[rp2a03ptr,#ch2Frequency]
 	mov r0,r0,lsl#5
 	rsb r0,r0,#1
-	strh r0,[n2a03ptr,#ch2Frq]
+	strh r0,[rp2a03ptr,#ch2Frq]
 	bx lr
 
 ;@----------------------------------------------------------------------------
@@ -300,7 +305,7 @@ _400CW:						;@ Noise Volume
 	orr r0,r0,r0,lsl#4
 	orr r0,r0,r0,lsl#16
 	mov r0,r0,lsl#4
-	str r0,[n2a03ptr,#ch3Volume]
+	str r0,[rp2a03ptr,#ch3Volume]
 	bx lr
 ;@----------------------------------------------------------------------------
 _400DW:						;@ Unused
@@ -314,7 +319,7 @@ _400EW:						;@ Noise Period
 	ldrh r0,[r2,r0]
 	mov r0,r0,lsl#5
 	rsb r0,r0,#1
-	strh r0,[n2a03ptr,#ch3Frq]
+	strh r0,[rp2a03ptr,#ch3Frq]
 	bx lr
 ;@----------------------------------------------------------------------------
 _400FW:						;@ Noise Length
@@ -328,7 +333,7 @@ _4010W:						;@ DMC IRQ, Loop, Frequency
 ;@----------------------------------------------------------------------------
 _4011W:						;@ DMC DAC
 ;@----------------------------------------------------------------------------
-	strb r0,[n2a03ptr,#dmcLoadCounter]
+	strb r0,[rp2a03ptr,#dmcLoadCounter]
 	bx lr
 
 ;@----------------------------------------------------------------------------
@@ -350,26 +355,27 @@ _4014W:						;@ Transfer 256 bytes from written page to $2004
 _4015W:						;@ Channel control
 ;@----------------------------------------------------------------------------
 	stmfd sp!,{r0,lr}
-	mov r0,#0
-	ldr r2,[n2a03ptr,#irqRoutine]			;@ Set IRQ pin on CPU
-	blx r2
+	ldrb r0,[rp2a03ptr,#rp2A03IrqPending]
+	bic r0,r0,#0x02				;@ Clear DMC IRQ
+	strb r0,[rp2a03ptr,#rp2A03IrqPending]
+	bl m6502SetIRQPin			;@ Update IRQ pin on CPU
 	ldmfd sp!,{r0,lr}
 
 	mov r1,#0
 	tst r0,#1
-	streq r1,[n2a03ptr,#ch0Volume]
+	streq r1,[rp2a03ptr,#ch0Volume]
 	tst r0,#2
-	streq r1,[n2a03ptr,#ch1Volume]
+	streq r1,[rp2a03ptr,#ch1Volume]
 	tst r0,#4
-	streq r1,[n2a03ptr,#ch2Volume]
+	streq r1,[rp2a03ptr,#ch2Volume]
 	tst r0,#8
-	streq r1,[n2a03ptr,#ch3Volume]
+	streq r1,[rp2a03ptr,#ch3Volume]
 	bx lr
 ;@----------------------------------------------------------------------------
 _4016W:						;@ $4016: Output 0 write
 ;@----------------------------------------------------------------------------
 	and r0,#0x03
-	strb r0,[n2a03ptr,#output0]
+	strb r0,[rp2a03ptr,#output0]
 	bx lr
 ;@----------------------------------------------------------------------------
 _4017W:						;@ $4017: FrameCounter

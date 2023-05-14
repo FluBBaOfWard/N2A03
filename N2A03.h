@@ -1,11 +1,15 @@
-#ifndef N2A03_HEADER
-#define N2A03_HEADER
+#ifndef RP2A03_HEADER
+#define RP2A03_HEADER
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
+#include "../ARM6502/M6502.h"
+
 typedef struct {
+	// rp2A03State:					;@
+
 	u16 ch0Frq;
 	u16 ch0Cnt;
 	u16 ch1Frq;
@@ -23,7 +27,7 @@ typedef struct {
 	u32 ch2Volume;
 	u32 ch3Volume;
 
-	// n2a03Regs:
+	// rp2a03Regs:
 	u8 ch0Duty;
 	u8 ch0Sweep;
 	u8 ch0Frequency;
@@ -45,12 +49,10 @@ typedef struct {
 	u8 ch4Address;
 	u8 ch4Length;
 
-	u8 n2A03DMA;
-	u8 n2A03Status;
-	u8 n2A03IOReg;
-	u8 n2A03FCounter;
-
-	// n2A03State:					;@
+	u8 rp2A03DMA;
+	u8 rp2A03Status;
+	u8 rp2A03IOReg;
+	u8 rp2A03FCounter;
 
 	u8 control;
 	u8 sq0Freq;
@@ -58,42 +60,44 @@ typedef struct {
 	u8 input0;
 	u8 input1;
 	u8 output0;
-	u8 n2A03Padding1[2];
+	u8 irqPending;
+	u8 rp2A03Padding1[1];
 
-	void *irqRoutine;
-} N2A03;
+} RP2A03;
 
-void n2A03Reset(void *irqRoutine);
+void rp2A03Init(const RP2A03 *chip);
+
+void rp2A03Reset(const RP2A03 *chip);
 
 /**
- * Saves the state of the N2A03 chip to the destination.
+ * Saves the state of the RP2A03 chip to the destination.
  * @param  *destination: Where to save the state.
- * @param  *chip: The N2A03 chip to save.
+ * @param  *chip: The RP2A03 chip to save.
  * @return The size of the state.
  */
-int n2A03SaveState(void *destination, const N2A03 *chip);
+int rp2A03SaveState(void *destination, const RP2A03 *chip);
 
 /**
- * Loads the state of the N2A03 chip from the source.
- * @param  *chip: The N2A03 chip to load a state into.
+ * Loads the state of the RP2A03 chip from the source.
+ * @param  *chip: The RP2A03 chip to load a state into.
  * @param  *source: Where to load the state from.
  * @return The size of the state.
  */
-int n2A03LoadState(N2A03 *chip, const void *source);
+int rp2A03LoadState(RP2A03 *chip, const void *source);
 
 /**
- * Gets the state size of a N2A03.
+ * Gets the state size of a RP2A03.
  * @return The size of the state.
  */
-int n2A03GetStateSize(void);
+int rp2A03GetStateSize(void);
 
-void n2A03Frame(void);
-void n2A03Mixer(int length, void *dest);
-void n2A03Read(short address);
-void n2A03Write(short address, unsigned char value);
+void rp2A03Frame(void);
+void rp2A03Mixer(int length, void *dest);
+void rp2A03Read(short address);
+void rp2A03Write(short address, unsigned char value);
 
 #ifdef __cplusplus
 } // extern "C"
 #endif
 
-#endif // N2A03_HEADER
+#endif // RP2A03_HEADER

@@ -1,1 +1,1 @@
-#define N2A03VERSION "V0.0.5"
+#define RP2A03VERSION "V0.0.6"

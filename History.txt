@@ -1,6 +1,10 @@
-N2A03 revision history
+RP2A03 revision history
 -=-=-=-=-=-=-=-=-=-=-=-=-=-
 
+
+V0.0.6 - 2023-05-14 (FluBBa)
+	Renamed N2A03 to RP2A03.
+	Better IRQ handling.
 
 V0.0.5 - 2021-03-16 (FluBBa)
 	Added load/save state.

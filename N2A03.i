@@ -1,9 +1,12 @@
-;@ ASM header for the N2A03 emulator
+;@ ASM header for the RP2A03/RP2A07 emulator
 ;@
 
-						;@ N2A03.s
-	n2a03ptr	.req r12
+#include "../ARM6502/M6502.i"
+						;@ RP2A03.s
+	rp2a03ptr	.req r12
 	.struct 0
+rp2A03State:				;@
+
 ch0Frq:			.short 0
 ch0Cnt:			.short 0
 ch1Frq:			.short 0
@@ -21,7 +24,9 @@ ch1Volume:		.long 0
 ch2Volume:		.long 0
 ch3Volume:		.long 0
 
-n2a03Regs:
+rp2A03Padding:	.space 8
+
+rp2A03Regs:
 ch0Duty:		.byte 0
 ch0Sweep:		.byte 0
 ch0Frequency:	.byte 0
@@ -43,12 +48,10 @@ ch4Dac:			.byte 0
 ch4Address:		.byte 0
 ch4Length:		.byte 0
 
-n2A03DMA:		.byte 0
-n2A03Status:	.byte 0
-n2A03IOReg:		.byte 0
-n2A03FCounter:	.byte 0
-
-n2A03State:					;@
+rp2A03DMA:		.byte 0
+rp2A03Status:	.byte 0
+rp2A03IOReg:	.byte 0
+rp2A03FCounter:	.byte 0
 
 control:		.byte 0
 sq0Freq:		.byte 0
@@ -56,11 +59,10 @@ dmcLoadCounter:	.byte 0
 input0:			.byte 0
 input1:			.byte 0
 output0:		.byte 0
-n2A03Padding1:	.space 2
+rp2A03IrqPending:	.byte 0
+rp2A03Padding1:	.space 1
 
-irqRoutine:		.long 0		;@
-
-n2a03Size:
+rp2a03Size:
 
 ;@----------------------------------------------------------------------------
 

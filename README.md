@@ -1,2 +1,2 @@
-# N2A03
-N2A03 sound chip emulator for ARM32.
+# RP2A03
+RP2A03 (NES) cpu/sound chip emulator for ARM32.
