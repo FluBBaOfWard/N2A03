@@ -91,6 +91,7 @@ int rp2A03LoadState(RP2A03 *chip, const void *source);
  */
 int rp2A03GetStateSize(void);
 
+void rp2A03SetIRQPin(bool set);
 void rp2A03Frame(void);
 void rp2A03Mixer(int length, void *dest);
 void rp2A03Read(short address);

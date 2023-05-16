@@ -4,6 +4,7 @@
 
 #include "RP2A03.i"
 
+	.global rp2A03Init
 	.global rp2A03Reset
 	.global rp2A03SetIRQPin
 	.global rp2A03SaveState
@@ -39,6 +40,7 @@ rp2A03Mixer:				;@ r0=len, r1=dest, r12=rp2a03ptr
 ;@----------------------------------------------------------------------------
 	mov r0,r0,lsl#2
 	stmfd sp!,{r4-r11,lr}
+	add rp2a03ptr,rp2a03ptr,#rp2A03State
 	ldmia rp2a03ptr,{r2-r11}	;@ Load freq/addr0-3, rng, noisefb, vol0-3
 ;@----------------------------------------------------------------------------
 mixLoop:
@@ -87,7 +89,7 @@ rp2A03Reset:				;@ rp2a03ptr = r12 = pointer to struct
 	stmfd sp!,{r4,lr}
 
 	add r0,rp2a03ptr,#rp2A03State
-	ldr r1,=(rp2a03Size-rp2A03State)/4
+	ldr r1,=rp2A03Size/4
 	bl memclr_					;@ Clear APU state
 
 	mov r0,#PFEED_SN			;@ Periodic noise
@@ -102,7 +104,7 @@ rp2A03SaveState:		;@ In r0=destination, r1=rp2a03ptr. Out r0=state size.
 	.type   rp2A03SaveState STT_FUNC
 ;@----------------------------------------------------------------------------
 	add r1,r1,#rp2A03State
-	mov r2,#rp2a03Size-rp2A03State
+	mov r2,#rp2A03Size
 	stmfd sp!,{r2,lr}
 
 	bl memcpy
@@ -115,7 +117,7 @@ rp2A03LoadState:			;@ In r0=rp2a03ptr, r1=source. Out r0=state size.
 ;@----------------------------------------------------------------------------
 	stmfd sp!,{lr}
 	add r0,r0,#rp2A03State
-	mov r2,#rp2a03Size-rp2A03State
+	mov r2,#rp2A03Size
 	bl memcpy
 
 	ldmfd sp!,{lr}
@@ -123,7 +125,7 @@ rp2A03LoadState:			;@ In r0=rp2a03ptr, r1=source. Out r0=state size.
 rp2A03GetStateSize:			;@ Out r0=state size.
 	.type   rp2A03GetStateSize STT_FUNC
 ;@----------------------------------------------------------------------------
-	mov r0,#rp2a03Size-rp2A03State
+	mov r0,#rp2A03Size
 	bx lr
 
 ;@----------------------------------------------------------------------------
