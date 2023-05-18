@@ -84,18 +84,34 @@ innerMixLoop:
 	.section .text
 	.align 2
 ;@----------------------------------------------------------------------------
-rp2A03Reset:				;@ rp2a03ptr = r12 = pointer to struct
+rp2A03Init:					;@ In r0=rp2a03ptr.
+;@----------------------------------------------------------------------------
+	add r0,r0,#rp2A03BaseAdr
+	;@ Setup mapping for $4000-$5FFF
+	ldr r1,=rp2A03Read
+	str r1,[r0,#m6502ReadTbl+8]	;@ RdMem
+	ldr r1,=rp2A03Write
+	str r1,[r0,#m6502WriteTbl+8];@ WrMem
+	mov r1,#0
+	str r1,[r0,#m6502MemTbl+8]	;@ MemMap
+
+	b m6502Init
+;@----------------------------------------------------------------------------
+rp2A03Reset:				;@ In r0=rp2a03ptr.
 ;@----------------------------------------------------------------------------
 	stmfd sp!,{r4,lr}
+	add r0,r0,#rp2A03BaseAdr
+	mov r4,r0
+	bl m6502Reset
 
-	add r0,rp2a03ptr,#rp2A03State
+	add r0,r4,#rp2A03State
 	ldr r1,=rp2A03Size/4
 	bl memclr_					;@ Clear APU state
 
 	mov r0,#PFEED_SN			;@ Periodic noise
-	str r0,[rp2a03ptr,#rng]
+	str r0,[r4,#rng]
 	mov r0,#WFEED_SN			;@ White noise
-	str r0,[rp2a03ptr,#noiseFB]
+	str r0,[r4,#noiseFB]
 
 	ldmfd sp!,{r4,lr}
 	bx lr
@@ -103,20 +119,28 @@ rp2A03Reset:				;@ rp2a03ptr = r12 = pointer to struct
 rp2A03SaveState:		;@ In r0=destination, r1=rp2a03ptr. Out r0=state size.
 	.type   rp2A03SaveState STT_FUNC
 ;@----------------------------------------------------------------------------
+	add r1,r1,#rp2A03BaseAdr
+	stmfd sp!,{r0,r1,lr}
+	bl m6502SaveState
+	ldmfd sp!,{r0,r1}
+	add r0,r0,#m6502StateSize
 	add r1,r1,#rp2A03State
-	mov r2,#rp2A03Size
-	stmfd sp!,{r2,lr}
-
+	mov r2,#rp2A03StateSize
 	bl memcpy
 
-	ldmfd sp!,{r0,lr}
+	ldmfd sp!,{lr}
+	mov r0,#m6502StateSize+rp2A03StateSize
 	bx lr
 ;@----------------------------------------------------------------------------
 rp2A03LoadState:			;@ In r0=rp2a03ptr, r1=source. Out r0=state size.
 	.type   rp2A03LoadState STT_FUNC
 ;@----------------------------------------------------------------------------
-	stmfd sp!,{lr}
+	add r0,r0,#rp2A03BaseAdr
+	stmfd sp!,{r0,r1,lr}
+	bl m6502LoadState
+	ldmfd sp!,{r0,r1}
 	add r0,r0,#rp2A03State
+	add r1,r1,#m6502StateSize
 	mov r2,#rp2A03Size
 	bl memcpy
 
@@ -125,7 +149,7 @@ rp2A03LoadState:			;@ In r0=rp2a03ptr, r1=source. Out r0=state size.
 rp2A03GetStateSize:			;@ Out r0=state size.
 	.type   rp2A03GetStateSize STT_FUNC
 ;@----------------------------------------------------------------------------
-	mov r0,#rp2A03Size
+	mov r0,#m6502StateSize+rp2A03StateSize
 	bx lr
 
 ;@----------------------------------------------------------------------------
@@ -146,7 +170,8 @@ rp2A03SetIRQPin:
 ;@----------------------------------------------------------------------------
 rp2A03Read:					;@ I/O read  (0x4000-0x4017)
 ;@----------------------------------------------------------------------------
-	sub r1,r1,#0x4000
+	sub r1,r12,#0x4000
+	mov rp2a03ptr,m6502ptr
 
 	cmp r1,#0x15
 	beq _4015R
@@ -185,7 +210,8 @@ _4017R:						;@ $4017: Input 1 read
 ;@----------------------------------------------------------------------------
 rp2A03Write:					;@ I/O write  (0x4000-0x4017)
 ;@----------------------------------------------------------------------------
-	sub r1,r1,#0x4000
+	sub r1,r12,#0x4000
+	mov rp2a03ptr,m6502ptr
 	cmp r1,#0x18
 	add r2,rp2a03ptr,#rp2A03Regs
 	strbmi r0,[r2,r1]

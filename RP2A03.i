@@ -10,8 +10,7 @@ rp2A03RunXCycles = m6502RunXCycles
 
 						;@ RP2A03.s
 	rp2a03ptr	.req r12
-	.struct 0
-rp2A03BaseAdr:
+	.struct -20*4
 rp2A03State:				;@
 
 ch0Frq:			.short 0
@@ -71,6 +70,8 @@ rp2A03Padding1:	.space 1
 rp2A03End:
 
 rp2A03Size = rp2A03End-rp2A03State
+rp2A03StateSize = rp2A03Size
+rp2A03BaseAdr = rp2A03Size
 
 ;@----------------------------------------------------------------------------
 
