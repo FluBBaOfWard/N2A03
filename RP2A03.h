@@ -8,6 +8,7 @@ extern "C" {
 #include "ARM6502/M6502.h"
 
 typedef struct {
+	M6502Core m6502Chip;
 	// rp2A03State:					;@
 
 	u16 ch0Frq;

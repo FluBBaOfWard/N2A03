@@ -40,8 +40,8 @@ rp2A03Mixer:				;@ r0=len, r1=dest, r12=rp2a03ptr
 ;@----------------------------------------------------------------------------
 	mov r0,r0,lsl#2
 	stmfd sp!,{r4-r11,lr}
-	add rp2a03ptr,rp2a03ptr,#rp2A03State
-	ldmia rp2a03ptr,{r2-r11}	;@ Load freq/addr0-3, rng, noisefb, vol0-3
+	add r12,r12,#rp2A03State
+	ldmia r12,{r2-r11}	;@ Load freq/addr0-3, rng, noisefb, vol0-3
 ;@----------------------------------------------------------------------------
 mixLoop:
 	mov lr,#0x80000000
@@ -76,7 +76,7 @@ innerMixLoop:
 	strpl lr,[r1],#4
 	bgt mixLoop
 
-	stmia rp2a03ptr,{r2-r6}		;@ Writeback freq,addr,rng
+	stmia r12,{r2-r6}		;@ Writeback freq,addr,rng
 	ldmfd sp!,{r4-r11,lr}
 	bx lr
 ;@----------------------------------------------------------------------------
@@ -86,7 +86,6 @@ innerMixLoop:
 ;@----------------------------------------------------------------------------
 rp2A03Init:					;@ In r0=rp2a03ptr.
 ;@----------------------------------------------------------------------------
-	add r0,r0,#rp2A03BaseAdr
 	;@ Setup mapping for $4000-$5FFF
 	ldr r1,=rp2A03Read
 	str r1,[r0,#m6502ReadTbl+8]	;@ RdMem
@@ -100,12 +99,11 @@ rp2A03Init:					;@ In r0=rp2a03ptr.
 rp2A03Reset:				;@ In r0=rp2a03ptr.
 ;@----------------------------------------------------------------------------
 	stmfd sp!,{r4,lr}
-	add r0,r0,#rp2A03BaseAdr
 	mov r4,r0
 	bl m6502Reset
 
 	add r0,r4,#rp2A03State
-	ldr r1,=rp2A03Size/4
+	ldr r1,=rp2A03StateSize/4
 	bl memclr_					;@ Clear APU state
 
 	mov r0,#PFEED_SN			;@ Periodic noise
@@ -119,7 +117,6 @@ rp2A03Reset:				;@ In r0=rp2a03ptr.
 rp2A03SaveState:		;@ In r0=destination, r1=rp2a03ptr. Out r0=state size.
 	.type   rp2A03SaveState STT_FUNC
 ;@----------------------------------------------------------------------------
-	add r1,r1,#rp2A03BaseAdr
 	stmfd sp!,{r0,r1,lr}
 	bl m6502SaveState
 	ldmfd sp!,{r0,r1}
@@ -135,7 +132,6 @@ rp2A03SaveState:		;@ In r0=destination, r1=rp2a03ptr. Out r0=state size.
 rp2A03LoadState:			;@ In r0=rp2a03ptr, r1=source. Out r0=state size.
 	.type   rp2A03LoadState STT_FUNC
 ;@----------------------------------------------------------------------------
-	add r0,r0,#rp2A03BaseAdr
 	stmfd sp!,{r0,r1,lr}
 	bl m6502LoadState
 	ldmfd sp!,{r0,r1}
@@ -153,13 +149,13 @@ rp2A03GetStateSize:			;@ Out r0=state size.
 	bx lr
 
 ;@----------------------------------------------------------------------------
-rp2A03Frame:				;@ rp2a03ptr = r12 = pointer to struct
+rp2A03Frame:				;@ rp2a03ptr = r10 = pointer to struct
 ;@----------------------------------------------------------------------------
 	stmfd sp!,{r4,lr}
 	ldmfd sp!,{r4,lr}
 	bx lr
 ;@----------------------------------------------------------------------------
-rp2A03SetIRQPin:
+rp2A03SetIRQPin:			;@ rp2a03ptr = r10 = pointer to struct
 ;@----------------------------------------------------------------------------
 	cmp r0,#0
 	ldrb r0,[rp2a03ptr,#rp2A03IrqPending]
@@ -171,7 +167,6 @@ rp2A03SetIRQPin:
 rp2A03Read:					;@ I/O read  (0x4000-0x4017)
 ;@----------------------------------------------------------------------------
 	sub r1,r12,#0x4000
-	mov rp2a03ptr,m6502ptr
 
 	cmp r1,#0x15
 	beq _4015R
@@ -184,17 +179,15 @@ rp2A03Read:					;@ I/O read  (0x4000-0x4017)
 ;@----------------------------------------------------------------------------
 _4015R:						;@ $4015: Status read
 ;@----------------------------------------------------------------------------
-	stmfd sp!,{lr}
+	// Check remaining length of all channels + interrupts
+	ldrb r0,[rp2a03ptr,#rp2A03Status]
+	bic r0,r0,#0xC0				;@ Clear IRQ status
+	strb r0,[rp2a03ptr,#rp2A03Status]
+
 	ldrb r0,[rp2a03ptr,#rp2A03IrqPending]
 	bic r0,r0,#0x01				;@ Frame IRQ
 	strb r0,[rp2a03ptr,#rp2A03IrqPending]
-	bl m6502SetIRQPin			;@ Update IRQ pin on CPU
-	ldmfd sp!,{lr}
-	// Check remaining length of all channels + interrupts
-	ldrb r0,[rp2a03ptr,#rp2A03Status]
-	bic r1,r0,#0xC0				;@ Clear IRQ status
-	strb r1,[rp2a03ptr,#rp2A03Status]
-	bx lr
+	b m6502SetIRQPin			;@ Update IRQ pin on CPU
 ;@----------------------------------------------------------------------------
 _4016R:						;@ $4016: Input 0 read
 ;@----------------------------------------------------------------------------
@@ -211,7 +204,6 @@ _4017R:						;@ $4017: Input 1 read
 rp2A03Write:					;@ I/O write  (0x4000-0x4017)
 ;@----------------------------------------------------------------------------
 	sub r1,r12,#0x4000
-	mov rp2a03ptr,m6502ptr
 	cmp r1,#0x18
 	add r2,rp2a03ptr,#rp2A03Regs
 	strbmi r0,[r2,r1]
@@ -259,16 +251,14 @@ _4001W:						;@ Pulse 1 Sweep unit
 ;@----------------------------------------------------------------------------
 _4002W:						;@ Pulse 1 Frequency (low)
 ;@----------------------------------------------------------------------------
-	b setFrq0
-	bx lr
 ;@----------------------------------------------------------------------------
 _4003W:						;@ Pulse 1 Length, Frequency (high)
 ;@----------------------------------------------------------------------------
-setFrq0:
-	ldrh r0,[rp2a03ptr,#ch0Frequency]
+	add r12,rp2a03ptr,#rp2A03State
+	ldrh r0,[r12,#ch0Frequency-rp2A03State]
 	mov r0,r0,lsl#5
 	rsb r0,r0,#1
-	strh r0,[rp2a03ptr,#ch0Frq]
+	strh r0,[r12,#ch0Frq-rp2A03State]
 	bx lr
 
 ;@----------------------------------------------------------------------------
@@ -287,16 +277,14 @@ _4005W:						;@ Pulse 2 Sweep unit
 ;@----------------------------------------------------------------------------
 _4006W:						;@ Pulse 2 Frequency (low)
 ;@----------------------------------------------------------------------------
-	b setFrq1
-	bx lr
 ;@----------------------------------------------------------------------------
 _4007W:						;@ Pulse 2 Length, Frequency (high)
 ;@----------------------------------------------------------------------------
-setFrq1:
-	ldrh r0,[rp2a03ptr,#ch1Frequency]
+	add r12,rp2a03ptr,#rp2A03State
+	ldrh r0,[r12,#ch1Frequency-rp2A03State]
 	mov r0,r0,lsl#5
 	rsb r0,r0,#1
-	strh r0,[rp2a03ptr,#ch1Frq]
+	strh r0,[r12,#ch1Frq-rp2A03State]
 	bx lr
 
 ;@----------------------------------------------------------------------------
@@ -315,15 +303,14 @@ _4009W:						;@ Unused
 ;@----------------------------------------------------------------------------
 _400AW:						;@ Triangle Frequency (low)
 ;@----------------------------------------------------------------------------
-	b setFrq2
 ;@----------------------------------------------------------------------------
 _400BW:						;@ Triangle Length, Frequency (high)
 ;@----------------------------------------------------------------------------
-setFrq2:
-	ldrh r0,[rp2a03ptr,#ch2Frequency]
+	add r12,rp2a03ptr,#rp2A03State
+	ldrh r0,[r12,#ch2Frequency-rp2A03State]
 	mov r0,r0,lsl#5
 	rsb r0,r0,#1
-	strh r0,[rp2a03ptr,#ch2Frq]
+	strh r0,[r12,#ch2Frq-rp2A03State]
 	bx lr
 
 ;@----------------------------------------------------------------------------
@@ -347,7 +334,8 @@ _400EW:						;@ Noise Period
 	ldrh r0,[r2,r0]
 	mov r0,r0,lsl#5
 	rsb r0,r0,#1
-	strh r0,[rp2a03ptr,#ch3Frq]
+	add r12,rp2a03ptr,#rp2A03State
+	strh r0,[r12,#ch3Frq-rp2A03State]
 	bx lr
 ;@----------------------------------------------------------------------------
 _400FW:						;@ Noise Length
