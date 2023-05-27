@@ -36,11 +36,11 @@
 ;@ lr  = mixer reg.
 ;@ r12  = rp2a03ptr.
 ;@----------------------------------------------------------------------------
-rp2A03Mixer:				;@ r0=len, r1=dest, r12=rp2a03ptr
+rp2A03Mixer:				;@ r0=len, r1=dest, r2=rp2a03ptr
 ;@----------------------------------------------------------------------------
 	mov r0,r0,lsl#2
 	stmfd sp!,{r4-r11,lr}
-	add r12,r12,#rp2A03State
+	add r12,r2,#rp2A03State
 	ldmia r12,{r2-r11}	;@ Load freq/addr0-3, rng, noisefb, vol0-3
 ;@----------------------------------------------------------------------------
 mixLoop:
@@ -94,24 +94,32 @@ rp2A03Init:					;@ In r0=rp2a03ptr.
 	mov r1,#0
 	str r1,[r0,#m6502MemTbl+8]	;@ MemMap
 
+	ldr r1,=empty_IO_R
+	ldr r2,=empty_IO_W
+	str r1,[r0,#rp2A03MemRead]
+	str r1,[r0,#rp2A03MemWrite]
+	str r1,[r0,#rp2A03IORead0]
+	str r1,[r0,#rp2A03IORead1]
+	str r2,[r0,#rp2A03IOWrite]
+
 	b m6502Init
 ;@----------------------------------------------------------------------------
 rp2A03Reset:				;@ In r0=rp2a03ptr.
 ;@----------------------------------------------------------------------------
-	stmfd sp!,{r4,lr}
-	mov r4,r0
+	stmfd sp!,{rp2a03ptr,lr}
+	mov rp2a03ptr,r0
 	bl m6502Reset
 
-	add r0,r4,#rp2A03State
+	add r0,rp2a03ptr,#rp2A03State
 	ldr r1,=rp2A03StateSize/4
 	bl memclr_					;@ Clear APU state
 
 	mov r0,#PFEED_SN			;@ Periodic noise
-	str r0,[r4,#rng]
+	str r0,[rp2a03ptr,#rng]
 	mov r0,#WFEED_SN			;@ White noise
-	str r0,[r4,#noiseFB]
+	str r0,[rp2a03ptr,#noiseFB]
 
-	ldmfd sp!,{r4,lr}
+	ldmfd sp!,{rp2a03ptr,lr}
 	bx lr
 ;@----------------------------------------------------------------------------
 rp2A03SaveState:		;@ In r0=destination, r1=rp2a03ptr. Out r0=state size.
@@ -137,7 +145,7 @@ rp2A03LoadState:			;@ In r0=rp2a03ptr, r1=source. Out r0=state size.
 	ldmfd sp!,{r0,r1}
 	add r0,r0,#rp2A03State
 	add r1,r1,#m6502StateSize
-	mov r2,#rp2A03Size
+	mov r2,#rp2A03StateSize
 	bl memcpy
 
 	ldmfd sp!,{lr}
@@ -164,7 +172,7 @@ rp2A03SetIRQPin:			;@ rp2a03ptr = r10 = pointer to struct
 	strb r0,[rp2a03ptr,#rp2A03IrqPending]
 	b m6502SetIRQPin
 ;@----------------------------------------------------------------------------
-rp2A03Read:					;@ I/O read  (0x4000-0x4017)
+rp2A03Read:					;@ I/O read  (0x4000-0x5FFF)
 ;@----------------------------------------------------------------------------
 	sub r1,r12,#0x4000
 
@@ -174,6 +182,8 @@ rp2A03Read:					;@ I/O read  (0x4000-0x4017)
 	beq _4016R
 	cmp r1,#0x17
 	beq _4017R
+	cmp r1,#0x20
+	ldrpl pc,[rp2a03ptr,#rp2A03MemRead]	;@ 0x4020-5FFF
 ;@---------------------------
 	b empty_IO_R
 ;@----------------------------------------------------------------------------
@@ -181,34 +191,44 @@ _4015R:						;@ $4015: Status read
 ;@----------------------------------------------------------------------------
 	// Check remaining length of all channels + interrupts
 	ldrb r0,[rp2a03ptr,#rp2A03Status]
+	stmfd sp!,{r0,lr}
 	bic r0,r0,#0xC0				;@ Clear IRQ status
 	strb r0,[rp2a03ptr,#rp2A03Status]
 
 	ldrb r0,[rp2a03ptr,#rp2A03IrqPending]
 	bic r0,r0,#0x01				;@ Frame IRQ
 	strb r0,[rp2a03ptr,#rp2A03IrqPending]
-	b m6502SetIRQPin			;@ Update IRQ pin on CPU
+	bl m6502SetIRQPin			;@ Update IRQ pin on CPU
+	ldmfd sp!,{r0,pc}
 ;@----------------------------------------------------------------------------
 _4016R:						;@ $4016: Input 0 read
 ;@----------------------------------------------------------------------------
-	ldrb r0,[rp2a03ptr,#input0]
-	bx lr
+	stmfd sp!,{lr}
+	mov lr,pc
+	ldr pc,[rp2a03ptr,#rp2A03IORead0]
+	and r0,r0,#0x1F
+	strb r0,[rp2a03ptr,#input0]
+	ldmfd sp!,{pc}
 ;@----------------------------------------------------------------------------
 _4017R:						;@ $4017: Input 1 read
 ;@----------------------------------------------------------------------------
-	ldrb r0,[rp2a03ptr,#input1]
-	bx lr
+	stmfd sp!,{lr}
+	mov lr,pc
+	ldr pc,[rp2a03ptr,#rp2A03IORead1]
+	and r0,r0,#0x1F
+	strb r0,[rp2a03ptr,#input1]
+	ldmfd sp!,{pc}
 ;@----------------------------------------------------------------------------
 
 ;@----------------------------------------------------------------------------
-rp2A03Write:					;@ I/O write  (0x4000-0x4017)
+rp2A03Write:					;@ I/O write  (0x4000-0x5FFF)
 ;@----------------------------------------------------------------------------
 	sub r1,r12,#0x4000
-	cmp r1,#0x18
+	cmp r1,#0x20
 	add r2,rp2a03ptr,#rp2A03Regs
 	strbmi r0,[r2,r1]
 	ldrmi pc,[pc,r1,lsl#2]
-	b empty_IO_W
+	ldr pc,[rp2a03ptr,#rp2A03MemWrite]	;@ 0x4020-5FFF
 ;@----------------------------------------------------------------------------
 writeTbl:
 	.long _4000W
@@ -235,6 +255,14 @@ writeTbl:
 	.long _4015W
 	.long _4016W
 	.long _4017W
+	.long empty_IO_W
+	.long empty_IO_W
+	.long empty_IO_W
+	.long empty_IO_W
+	.long empty_IO_W
+	.long empty_IO_W
+	.long empty_IO_W
+	.long empty_IO_W
 ;@----------------------------------------------------------------------------
 _4000W:						;@ Pulse 1 Duty, Volume
 ;@----------------------------------------------------------------------------
@@ -390,9 +418,9 @@ _4015W:						;@ Channel control
 ;@----------------------------------------------------------------------------
 _4016W:						;@ $4016: Output 0 write
 ;@----------------------------------------------------------------------------
-	and r0,#0x03
+	and r0,#0x07
 	strb r0,[rp2a03ptr,#output0]
-	bx lr
+	ldr pc,[rp2a03ptr,#rp2A03IOWrite]
 ;@----------------------------------------------------------------------------
 _4017W:						;@ $4017: FrameCounter
 ;@----------------------------------------------------------------------------

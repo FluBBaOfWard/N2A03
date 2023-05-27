@@ -28,6 +28,14 @@ typedef struct {
 	u32 ch2Volume;
 	u32 ch3Volume;
 
+	u8 rp2A03Status;
+	u8 dmcLoadCounter;
+	u8 input0;
+	u8 input1;
+	u8 output0;
+	u8 irqPending;
+	u8 rp2A03Padding0[2];
+
 	// rp2a03Regs:
 	u8 ch0Duty;
 	u8 ch0Sweep;
@@ -51,18 +59,17 @@ typedef struct {
 	u8 ch4Length;
 
 	u8 rp2A03DMA;
-	u8 rp2A03Status;
+	u8 rp2A03Control;;
 	u8 rp2A03IOReg;
 	u8 rp2A03FCounter;
 
-	u8 control;
-	u8 sq0Freq;
-	u8 dmcLoadCounter;
-	u8 input0;
-	u8 input1;
-	u8 output0;
-	u8 irqPending;
-	u8 rp2A03Padding1[1];
+	u8 rp2A03Padding1[8];
+
+	void *rp2A03MemRead;		// For reads 4020-5FFF
+	void *rp2A03MemWrite;		// For writes 4020-5FFF
+	void *rp2A03IORead0;		// For reads 4016
+	void *rp2A03IORead1;		// For reads 4017
+	void *rp2A03IOWrite;		// For writes 4016
 
 } RP2A03;
 
