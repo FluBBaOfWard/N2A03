@@ -186,7 +186,7 @@ rp2A03SetDmcIRQ:			;@ rp2a03ptr = r10 = pointer to struct
 ;@----------------------------------------------------------------------------
 rp2A03Read:					;@ I/O read  (0x4000-0x5FFF)
 ;@----------------------------------------------------------------------------
-	sub r1,r12,#0x4000
+	sub r1,addy,#0x4000
 
 	cmp r1,#0x15
 	beq _4015R
@@ -233,14 +233,14 @@ _4017R:						;@ $4017: Input 1 read
 ;@----------------------------------------------------------------------------
 rp2A03Write:					;@ I/O write  (0x4000-0x5FFF)
 ;@----------------------------------------------------------------------------
-	sub r1,r12,#0x4000
+	sub r1,addy,#0x4000
 	cmp r1,#0x20
 	add r2,rp2a03ptr,#rp2A03Regs
 	strbmi r0,[r2,r1]
 	ldrmi pc,[pc,r1,lsl#2]
 	ldr pc,[rp2a03ptr,#rp2A03MemWrite]	;@ 0x4020-5FFF
 ;@----------------------------------------------------------------------------
-#if 0
+#ifdef ARM7SOUND
 writeTbl:
 	.long soundwrite	@pAPU Pulse #1 Control Register 0x4000
 	.long soundwrite	@pAPU Pulse #1 Ramp Control Register 0x4001
@@ -262,7 +262,7 @@ writeTbl:
 	.long soundwrite	@pAPU Delta Modulation D/A Register 0x4011
 	.long soundwrite	@pAPU Delta Modulation Address Register 0x4012
 	.long soundwrite	@pAPU Delta Modulation Data Length Register 0x4013
-	.long dma_W			@$4014: Sprite DMA transfer
+	.long _4014W		@$4014: Sprite DMA transfer
 	.long sndWr4015
 	.long _4016W
 	.long _4017W
@@ -275,9 +275,9 @@ writeTbl:
 	.long empty_W
 	.long empty_W
 sndWr4015:
-	stmfd sp!,{r0,r12,lr}
+	stmfd sp!,{r0,addy,lr}
 	bl soundwrite
-	ldmfd sp!,{r0,r12,lr}
+	ldmfd sp!,{r0,addy,lr}
 	b _4015W
 #else
 writeTbl:
@@ -333,11 +333,11 @@ _4002W:						;@ Pulse 1 Frequency (low)
 ;@----------------------------------------------------------------------------
 _4003W:						;@ Pulse 1 Length, Frequency (high)
 ;@----------------------------------------------------------------------------
-	add r12,rp2a03ptr,#rp2A03State
-	ldrh r0,[r12,#ch0Frequency-rp2A03State]
+	add r1,rp2a03ptr,#rp2A03State
+	ldrh r0,[r1,#ch0Frequency-rp2A03State]
 	mov r0,r0,lsl#5
 	rsb r0,r0,#1
-	strh r0,[r12,#ch0Frq-rp2A03State]
+	strh r0,[r1,#ch0Frq-rp2A03State]
 	bx lr
 
 ;@----------------------------------------------------------------------------
@@ -359,11 +359,11 @@ _4006W:						;@ Pulse 2 Frequency (low)
 ;@----------------------------------------------------------------------------
 _4007W:						;@ Pulse 2 Length, Frequency (high)
 ;@----------------------------------------------------------------------------
-	add r12,rp2a03ptr,#rp2A03State
-	ldrh r0,[r12,#ch1Frequency-rp2A03State]
+	add r1,rp2a03ptr,#rp2A03State
+	ldrh r0,[r1,#ch1Frequency-rp2A03State]
 	mov r0,r0,lsl#5
 	rsb r0,r0,#1
-	strh r0,[r12,#ch1Frq-rp2A03State]
+	strh r0,[r1,#ch1Frq-rp2A03State]
 	bx lr
 
 ;@----------------------------------------------------------------------------
@@ -385,11 +385,11 @@ _400AW:						;@ Triangle Frequency (low)
 ;@----------------------------------------------------------------------------
 _400BW:						;@ Triangle Length, Frequency (high)
 ;@----------------------------------------------------------------------------
-	add r12,rp2a03ptr,#rp2A03State
-	ldrh r0,[r12,#ch2Frequency-rp2A03State]
+	add r1,rp2a03ptr,#rp2A03State
+	ldrh r0,[r1,#ch2Frequency-rp2A03State]
 	mov r0,r0,lsl#5
 	rsb r0,r0,#1
-	strh r0,[r12,#ch2Frq-rp2A03State]
+	strh r0,[r1,#ch2Frq-rp2A03State]
 	bx lr
 
 ;@----------------------------------------------------------------------------
@@ -413,8 +413,8 @@ _400EW:						;@ Noise Period
 	ldrh r0,[r2,r0]
 	mov r0,r0,lsl#5
 	rsb r0,r0,#1
-	add r12,rp2a03ptr,#rp2A03State
-	strh r0,[r12,#ch3Frq-rp2A03State]
+	add r1,rp2a03ptr,#rp2A03State
+	strh r0,[r1,#ch3Frq-rp2A03State]
 	bx lr
 ;@----------------------------------------------------------------------------
 _400FW:						;@ Noise Length
@@ -444,18 +444,31 @@ _4013W:						;@ DMC Sample Length
 ;@----------------------------------------------------------------------------
 _4014W:						;@ Transfer 256 bytes from written page to $2004
 ;@----------------------------------------------------------------------------
+	ldr r1,=513*3*CYCLE		@ 513/514 is the right number...
+	sub cycles,cycles,r1
+	stmfd sp!,{r3-r6,lr}
+
+	and r1,r0,#0xe0
+	add r2,rp2a03ptr,#m6502MemTbl
+	ldr r2,[r2,r1,lsr#3]
+	and r0,r0,#0xff
+	add r3,r2,r0,lsl#8	@ r3=DMA source
+	ldr r4,=0x2004		@ DMA destination
+	ldr r6,[rp2a03ptr,#m6502WriteTbl+4]
+	mov r5,#0x100
+dmaLoop:
+	ldrb r0,[r3],#1
+	mov addy,r4
+	blx r6
+	subs r5,r5,#1
+	bne dmaLoop
+
+	ldmfd sp!,{r3-r6,lr}
 	bx lr
 
 ;@----------------------------------------------------------------------------
 _4015W:						;@ Channel control
 ;@----------------------------------------------------------------------------
-	stmfd sp!,{r0,lr}
-	ldrb r0,[rp2a03ptr,#rp2A03IrqPending]
-	bic r0,r0,#0x02				;@ Clear DMC IRQ
-	strb r0,[rp2a03ptr,#rp2A03IrqPending]
-	bl m6502SetIRQPin			;@ Update IRQ pin on CPU
-	ldmfd sp!,{r0,lr}
-
 	mov r1,#0
 	tst r0,#1
 	streq r1,[rp2a03ptr,#ch0Volume]
@@ -465,7 +478,11 @@ _4015W:						;@ Channel control
 	streq r1,[rp2a03ptr,#ch2Volume]
 	tst r0,#8
 	streq r1,[rp2a03ptr,#ch3Volume]
-	bx lr
+
+	ldrb r0,[rp2a03ptr,#rp2A03IrqPending]
+	bic r0,r0,#0x02				;@ Clear DMC IRQ
+	strb r0,[rp2a03ptr,#rp2A03IrqPending]
+	b m6502SetIRQPin			;@ Update IRQ pin on CPU
 ;@----------------------------------------------------------------------------
 _4016W:						;@ $4016: Output 0 write
 ;@----------------------------------------------------------------------------
