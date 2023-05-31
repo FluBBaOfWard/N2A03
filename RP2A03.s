@@ -7,6 +7,7 @@
 	.global rp2A03Init
 	.global rp2A03Reset
 	.global rp2A03SetIRQPin
+	.global rp2A03SetDmcIRQ
 	.global rp2A03SaveState
 	.global rp2A03LoadState
 	.global rp2A03GetStateSize
@@ -173,6 +174,16 @@ rp2A03SetIRQPin:			;@ rp2a03ptr = r10 = pointer to struct
 	strb r0,[rp2a03ptr,#rp2A03IrqPending]
 	b m6502SetIRQPin
 ;@----------------------------------------------------------------------------
+rp2A03SetDmcIRQ:			;@ rp2a03ptr = r10 = pointer to struct
+;@----------------------------------------------------------------------------
+	ldrb r0,[rp2a03ptr,#rp2A03Status]
+	orr r0,r0,#0x80
+	strb r0,[rp2a03ptr,#rp2A03Status]
+	ldrb r0,[rp2a03ptr,#rp2A03IrqPending]
+	orr r0,r0,#0x02				;@ Set DMC IRQ
+	strb r0,[rp2a03ptr,#rp2A03IrqPending]
+	b m6502SetIRQPin
+;@----------------------------------------------------------------------------
 rp2A03Read:					;@ I/O read  (0x4000-0x5FFF)
 ;@----------------------------------------------------------------------------
 	sub r1,r12,#0x4000
@@ -197,7 +208,7 @@ _4015R:						;@ $4015: Status read
 	strb r0,[rp2a03ptr,#rp2A03Status]
 
 	ldrb r0,[rp2a03ptr,#rp2A03IrqPending]
-	bic r0,r0,#0x01				;@ Frame IRQ
+	bic r0,r0,#0x01				;@ Clear Frame IRQ
 	strb r0,[rp2a03ptr,#rp2A03IrqPending]
 	bl m6502SetIRQPin			;@ Update IRQ pin on CPU
 	ldmfd sp!,{r0,pc}
@@ -252,7 +263,7 @@ writeTbl:
 	.long soundwrite	@pAPU Delta Modulation Address Register 0x4012
 	.long soundwrite	@pAPU Delta Modulation Data Length Register 0x4013
 	.long dma_W			@$4014: Sprite DMA transfer
-	.long soundwrite
+	.long sndWr4015
 	.long _4016W
 	.long _4017W
 	.long empty_W
@@ -263,6 +274,11 @@ writeTbl:
 	.long empty_W
 	.long empty_W
 	.long empty_W
+sndWr4015:
+	stmfd sp!,{r0,r12,lr}
+	bl soundwrite
+	ldmfd sp!,{r0,r12,lr}
+	b _4015W
 #else
 writeTbl:
 	.long _4000W
