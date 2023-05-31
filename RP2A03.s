@@ -94,8 +94,8 @@ rp2A03Init:					;@ In r0=rp2a03ptr.
 	mov r1,#0
 	str r1,[r0,#m6502MemTbl+8]	;@ MemMap
 
-	ldr r1,=empty_IO_R
-	ldr r2,=empty_IO_W
+	ldr r1,=empty_R
+	ldr r2,=empty_W
 	str r1,[r0,#rp2A03MemRead]
 	str r1,[r0,#rp2A03MemWrite]
 	str r1,[r0,#rp2A03IORead0]
@@ -111,8 +111,9 @@ rp2A03Reset:				;@ In r0=rp2a03ptr.
 	bl m6502Reset
 
 	add r0,rp2a03ptr,#rp2A03State
-	ldr r1,=rp2A03StateSize/4
-	bl memclr_					;@ Clear APU state
+	mov r1,#0
+	ldr r2,=rp2A03StateSize/4
+	bl memset					;@ Clear APU state
 
 	mov r0,#PFEED_SN			;@ Periodic noise
 	str r0,[rp2a03ptr,#rng]
@@ -185,7 +186,7 @@ rp2A03Read:					;@ I/O read  (0x4000-0x5FFF)
 	cmp r1,#0x20
 	ldrpl pc,[rp2a03ptr,#rp2A03MemRead]	;@ 0x4020-5FFF
 ;@---------------------------
-	b empty_IO_R
+	b empty_R
 ;@----------------------------------------------------------------------------
 _4015R:						;@ $4015: Status read
 ;@----------------------------------------------------------------------------
@@ -240,11 +241,11 @@ writeTbl:
 	.long _4006W
 	.long _4007W
 	.long _4008W
-	.long empty_IO_W
+	.long empty_W
 	.long _400AW
 	.long _400BW
 	.long _400CW
-	.long empty_IO_W
+	.long empty_W
 	.long _400EW
 	.long _400FW
 	.long _4010W
@@ -255,14 +256,14 @@ writeTbl:
 	.long _4015W
 	.long _4016W
 	.long _4017W
-	.long empty_IO_W
-	.long empty_IO_W
-	.long empty_IO_W
-	.long empty_IO_W
-	.long empty_IO_W
-	.long empty_IO_W
-	.long empty_IO_W
-	.long empty_IO_W
+	.long empty_W
+	.long empty_W
+	.long empty_W
+	.long empty_W
+	.long empty_W
+	.long empty_W
+	.long empty_W
+	.long empty_W
 ;@----------------------------------------------------------------------------
 _4000W:						;@ Pulse 1 Duty, Volume
 ;@----------------------------------------------------------------------------
