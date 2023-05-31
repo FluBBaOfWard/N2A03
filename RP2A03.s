@@ -207,7 +207,6 @@ _4016R:						;@ $4016: Input 0 read
 	stmfd sp!,{lr}
 	mov lr,pc
 	ldr pc,[rp2a03ptr,#rp2A03IORead0]
-	and r0,r0,#0x1F
 	strb r0,[rp2a03ptr,#input0]
 	ldmfd sp!,{pc}
 ;@----------------------------------------------------------------------------
@@ -216,7 +215,6 @@ _4017R:						;@ $4017: Input 1 read
 	stmfd sp!,{lr}
 	mov lr,pc
 	ldr pc,[rp2a03ptr,#rp2A03IORead1]
-	and r0,r0,#0x1F
 	strb r0,[rp2a03ptr,#input1]
 	ldmfd sp!,{pc}
 ;@----------------------------------------------------------------------------
@@ -231,6 +229,41 @@ rp2A03Write:					;@ I/O write  (0x4000-0x5FFF)
 	ldrmi pc,[pc,r1,lsl#2]
 	ldr pc,[rp2a03ptr,#rp2A03MemWrite]	;@ 0x4020-5FFF
 ;@----------------------------------------------------------------------------
+#if 0
+writeTbl:
+	.long soundwrite	@pAPU Pulse #1 Control Register 0x4000
+	.long soundwrite	@pAPU Pulse #1 Ramp Control Register 0x4001
+	.long soundwrite	@pAPU Pulse #1 Fine Tune (FT) Register 0x4002
+	.long soundwrite	@pAPU Pulse #1 Coarse Tune (CT) Register 0x4003
+	.long soundwrite	@pAPU Pulse #2 Control Register 0x4004
+	.long soundwrite	@pAPU Pulse #2 Ramp Control Register 0x4005
+	.long soundwrite	@pAPU Pulse #2 Fine Tune Register 0x4006
+	.long soundwrite	@pAPU Pulse #2 Coarse Tune Register 0x4007
+	.long soundwrite	@pAPU Triangle Control Register #1 0x4008
+	.long empty_W
+	.long soundwrite	@pAPU Triangle Frequency Register #1 0x400a
+	.long soundwrite	@pAPU Triangle Frequency Register #2 0x400b
+	.long soundwrite	@pAPU Noise Control Register #1 0x400c
+	.long empty_W
+	.long soundwrite	@pAPU Noise Frequency Register #1 0x400e
+	.long soundwrite	@pAPU Noise Frequency Register #2 0x400f
+	.long soundwrite	@pAPU Delta Modulation Control Register 0x4010
+	.long soundwrite	@pAPU Delta Modulation D/A Register 0x4011
+	.long soundwrite	@pAPU Delta Modulation Address Register 0x4012
+	.long soundwrite	@pAPU Delta Modulation Data Length Register 0x4013
+	.long dma_W			@$4014: Sprite DMA transfer
+	.long soundwrite
+	.long _4016W
+	.long _4017W
+	.long empty_W
+	.long empty_W
+	.long empty_W
+	.long empty_W
+	.long empty_W
+	.long empty_W
+	.long empty_W
+	.long empty_W
+#else
 writeTbl:
 	.long _4000W
 	.long _4001W
@@ -264,6 +297,7 @@ writeTbl:
 	.long empty_W
 	.long empty_W
 	.long empty_W
+#endif
 ;@----------------------------------------------------------------------------
 _4000W:						;@ Pulse 1 Duty, Volume
 ;@----------------------------------------------------------------------------
