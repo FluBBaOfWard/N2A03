@@ -8,6 +8,7 @@
 	.global rp2A03Reset
 	.global rp2A03SetIRQPin
 	.global rp2A03SetDmcIRQ
+	.global rp2A03RunXCycles
 	.global rp2A03SaveState
 	.global rp2A03LoadState
 	.global rp2A03GetStateSize
@@ -176,6 +177,7 @@ rp2A03SetIRQPin:			;@ rp2a03ptr = r10 = pointer to struct
 ;@----------------------------------------------------------------------------
 rp2A03SetDmcIRQ:			;@ rp2a03ptr = r10 = pointer to struct
 ;@----------------------------------------------------------------------------
+	bx lr
 	ldrb r0,[rp2a03ptr,#rp2A03Status]
 	orr r0,r0,#0x80
 	strb r0,[rp2a03ptr,#rp2A03Status]
@@ -183,6 +185,34 @@ rp2A03SetDmcIRQ:			;@ rp2a03ptr = r10 = pointer to struct
 	orr r0,r0,#0x02				;@ Set DMC IRQ
 	strb r0,[rp2a03ptr,#rp2A03IrqPending]
 	b m6502SetIRQPin
+;@----------------------------------------------------------------------------
+rp2A03RunXCycles:			;@ r0 = number of cycles to run
+;@----------------------------------------------------------------------------
+	ldrb r1,[rp2a03ptr,#rp2A03Control]
+	tst r1,#0x10						;@ DMC Channel Enabled?
+	beq noDMCIRQ
+	ldr r1,[rp2a03ptr,#rp2A03DMCCount]
+	cmp r1,#0
+	beq noDMCIRQ
+	subs r1,r1,r0
+	movmi r1,#0
+	str r1,[rp2a03ptr,#rp2A03DMCCount]
+	bhi noDMCIRQ
+	ldrb r1,[rp2a03ptr,#ch4Frequency]
+	tst r1,#0x80						;@ DMC IRQ Enabled?
+	ldrb r1,[rp2a03ptr,#rp2A03Status]
+	bic r1,r1,#0x10
+	orrne r1,r1,#0x80
+	strb r1,[rp2a03ptr,#rp2A03Status]
+	beq noDMCIRQ
+	stmfd sp!,{r0,lr}
+	ldrb r0,[rp2a03ptr,#rp2A03IrqPending]
+	orr r0,r0,#0x02				;@ Set DMC IRQ
+	strb r0,[rp2a03ptr,#rp2A03IrqPending]
+	bl m6502SetIRQPin
+	ldmfd sp!,{r0,lr}
+noDMCIRQ:
+	b m6502RunXCycles
 ;@----------------------------------------------------------------------------
 rp2A03Read:					;@ I/O read  (0x4000-0x5FFF)
 ;@----------------------------------------------------------------------------
@@ -258,10 +288,10 @@ writeTbl:
 	.long empty_W
 	.long soundwrite	@pAPU Noise Frequency Register #1 0x400e
 	.long soundwrite	@pAPU Noise Frequency Register #2 0x400f
-	.long soundwrite	@pAPU Delta Modulation Control Register 0x4010
+	.long sndWr4010		@pAPU Delta Modulation Control Register 0x4010
 	.long soundwrite	@pAPU Delta Modulation D/A Register 0x4011
 	.long soundwrite	@pAPU Delta Modulation Address Register 0x4012
-	.long soundwrite	@pAPU Delta Modulation Data Length Register 0x4013
+	.long _4013W		@pAPU Delta Modulation Data Length Register 0x4013
 	.long _4014W		@$4014: Sprite DMA transfer
 	.long sndWr4015
 	.long _4016W
@@ -274,6 +304,11 @@ writeTbl:
 	.long empty_W
 	.long empty_W
 	.long empty_W
+sndWr4010:
+	stmfd sp!,{r0,addy,lr}
+	bl soundwrite
+	ldmfd sp!,{r0,addy,lr}
+	b _4010W
 sndWr4015:
 	stmfd sp!,{r0,addy,lr}
 	bl soundwrite
@@ -424,7 +459,12 @@ _400FW:						;@ Noise Length
 ;@----------------------------------------------------------------------------
 _4010W:						;@ DMC IRQ, Loop, Frequency
 ;@----------------------------------------------------------------------------
-	bx lr
+	tst r0,#0x80				;@ DMC IRQ enable
+	bxne lr
+	ldrb r0,[rp2a03ptr,#rp2A03IrqPending]
+	bic r0,r0,#0x02				;@ Clear DMC IRQ
+	strb r0,[rp2a03ptr,#rp2A03IrqPending]
+	b m6502SetIRQPin			;@ Update IRQ pin on CPU
 ;@----------------------------------------------------------------------------
 _4011W:						;@ DMC DAC
 ;@----------------------------------------------------------------------------
@@ -439,6 +479,25 @@ _4012W:						;@ DMC Sample address
 ;@----------------------------------------------------------------------------
 _4013W:						;@ DMC Sample Length
 ;@----------------------------------------------------------------------------
+//	ldrb r0,[rp2a03ptr,#rp2A03Control]
+//	tst r0,#0x10
+	bx lr
+startDMC:
+	ldrb r0,[rp2a03ptr,#ch4Length]
+	ldrb r1,[rp2a03ptr,#ch4Frequency]
+	and r1,r1,#0xF
+	mov r1,r1,lsl#1
+	adr r2,dmcPeriodTableNTSC
+	ldrh r1,[r2,r1]
+	mov r0,r0,lsl#7			@ x16 bytes x8 bits
+	add r0,r0,#8			@ 1 extra byte
+	mul r0,r1,r0			@ x rate
+	add r0,r0,r0,lsl#1		@ x3 becuase PPU cycles
+	str r0,[rp2a03ptr,#rp2A03DMCCount]
+
+	ldrb r0,[rp2a03ptr,#rp2A03Status]
+	orr r0,r0,#0x10
+	strb r0,[rp2a03ptr,#rp2A03Status]
 	bx lr
 
 ;@----------------------------------------------------------------------------
@@ -469,15 +528,20 @@ dmaLoop:
 ;@----------------------------------------------------------------------------
 _4015W:						;@ Channel control
 ;@----------------------------------------------------------------------------
-	mov r1,#0
-	tst r0,#1
+	ands r1,r0,#0x01
 	streq r1,[rp2a03ptr,#ch0Volume]
-	tst r0,#2
+	ands r1,r0,#0x02
 	streq r1,[rp2a03ptr,#ch1Volume]
-	tst r0,#4
+	ands r1,r0,#0x04
 	streq r1,[rp2a03ptr,#ch2Volume]
-	tst r0,#8
+	ands r1,r0,#0x08
 	streq r1,[rp2a03ptr,#ch3Volume]
+
+	ands r1,r0,#0x10
+	streq r1,[rp2a03ptr,#rp2A03DMCCount]
+	stmfd sp!,{lr}
+	blne startDMC
+	ldmfd sp!,{lr}
 
 	ldrb r0,[rp2a03ptr,#rp2A03IrqPending]
 	bic r0,r0,#0x02				;@ Clear DMC IRQ
@@ -498,6 +562,10 @@ pulseLengthTable:
 	.byte 10,254, 20,  2, 40,  4, 80,  6, 160,  8, 60, 10, 14, 12, 26, 14
 	.byte 12, 16, 24, 18, 48, 20, 96, 22, 192, 24, 72, 26, 16, 28, 32, 30
 
+dmcPeriodTableNTSC:
+	.short 428, 380, 340, 320, 286, 254, 226, 214, 190, 160, 142, 128, 106, 84, 72, 54
+dmcPeriodTablePAL:
+	.short 398, 354, 316, 298, 276, 236, 210, 198, 176, 148, 132, 118,  98, 78, 66, 50
 noisePeriodTableNTSC:
 	.short 4, 8, 16, 32, 64, 96, 128, 160, 202, 254, 380, 508, 762, 1016, 2034, 4068
 noisePeriodTablePAL:

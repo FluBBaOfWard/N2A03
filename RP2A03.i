@@ -6,7 +6,6 @@
 rp2A03SetResetPin = m6502SetResetPin
 rp2A03SetNMIPin = m6502SetNMIPin
 rp2A03RestoreAndRunXCycles = m6502RestoreAndRunXCycles
-rp2A03RunXCycles = m6502RunXCycles
 
 						;@ RP2A03.s
 	rp2a03ptr	.req m6502ptr
@@ -68,6 +67,7 @@ rp2A03IOReg:	.byte 0			;@ 4016
 rp2A03FCounter:	.byte 0			;@ 4017
 
 rp2A03Padding1:	.space 8		;@ 4018-401F
+rp2A03DMCCount:	.long 0
 rp2A03StateEnd:
 
 rp2A03MemRead:	.long 0			;@ For reads 4020-5FFF
