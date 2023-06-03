@@ -64,6 +64,7 @@ typedef struct {
 	u8 rp2A03FCounter;
 
 	u8 rp2A03Padding1[8];
+	u32 rp2A03DMCCount;
 
 	void *rp2A03MemRead;		// For reads 4020-5FFF
 	void *rp2A03MemWrite;		// For writes 4020-5FFF

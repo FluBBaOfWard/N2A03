@@ -1,7 +1,6 @@
 RP2A03 To do
 -----------
 
-	Fix IRQ time calculation.
 	Fix noise generation.
 	DMCA.
 	Sweeps.

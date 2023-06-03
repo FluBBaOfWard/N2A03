@@ -479,27 +479,7 @@ _4012W:						;@ DMC Sample address
 ;@----------------------------------------------------------------------------
 _4013W:						;@ DMC Sample Length
 ;@----------------------------------------------------------------------------
-//	ldrb r0,[rp2a03ptr,#rp2A03Control]
-//	tst r0,#0x10
 	bx lr
-startDMC:
-	ldrb r0,[rp2a03ptr,#ch4Length]
-	ldrb r1,[rp2a03ptr,#ch4Frequency]
-	and r1,r1,#0xF
-	mov r1,r1,lsl#1
-	adr r2,dmcPeriodTableNTSC
-	ldrh r1,[r2,r1]
-	mov r0,r0,lsl#7			@ x16 bytes x8 bits
-	add r0,r0,#8			@ 1 extra byte
-	mul r0,r1,r0			@ x rate
-	add r0,r0,r0,lsl#1		@ x3 becuase PPU cycles
-	str r0,[rp2a03ptr,#rp2A03DMCCount]
-
-	ldrb r0,[rp2a03ptr,#rp2A03Status]
-	orr r0,r0,#0x10
-	strb r0,[rp2a03ptr,#rp2A03Status]
-	bx lr
-
 ;@----------------------------------------------------------------------------
 _4014W:						;@ Transfer 256 bytes from written page to $2004
 ;@----------------------------------------------------------------------------
@@ -556,6 +536,25 @@ _4016W:						;@ $4016: Output 0 write
 ;@----------------------------------------------------------------------------
 _4017W:						;@ $4017: FrameCounter
 ;@----------------------------------------------------------------------------
+	bx lr
+;@----------------------------------------------------------------------------
+startDMC:
+;@----------------------------------------------------------------------------
+	ldrb r0,[rp2a03ptr,#ch4Length]
+	ldrb r1,[rp2a03ptr,#ch4Frequency]
+	and r1,r1,#0xF
+	mov r1,r1,lsl#1
+	adr r2,dmcPeriodTableNTSC
+//	adr r2,dmcPeriodTablePAL
+	ldrh r1,[r2,r1]
+	mov r0,r0,lsl#7			@ x16 bytes x8 bits
+	mul r0,r1,r0			@ x rate
+	add r0,r0,r0,lsl#1		@ x3 because PPU cycles
+	str r0,[rp2a03ptr,#rp2A03DMCCount]
+
+	ldrb r0,[rp2a03ptr,#rp2A03Status]
+	orr r0,r0,#0x10
+	strb r0,[rp2a03ptr,#rp2A03Status]
 	bx lr
 ;@----------------------------------------------------------------------------
 pulseLengthTable:
