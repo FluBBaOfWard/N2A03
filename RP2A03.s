@@ -188,10 +188,7 @@ rp2A03SetDmcIRQ:			;@ rp2a03ptr = r10 = pointer to struct
 ;@----------------------------------------------------------------------------
 rp2A03RunXCycles:			;@ r0 = number of cycles to run
 ;@----------------------------------------------------------------------------
-	ldrb r1,[rp2a03ptr,#rp2A03Control]
-	tst r1,#0x10						;@ DMC Channel Enabled?
-	beq noDMCIRQ
-	ldr r1,[rp2a03ptr,#rp2A03DMCCount]
+	ldr r1,[rp2a03ptr,#rp2A03DMCCount]	;@ DMC Channel Enabled?
 	cmp r1,#0
 	beq noDMCIRQ
 	subs r1,r1,r0
@@ -291,7 +288,7 @@ writeTbl:
 	.long sndWr4010		@pAPU Delta Modulation Control Register 0x4010
 	.long soundwrite	@pAPU Delta Modulation D/A Register 0x4011
 	.long soundwrite	@pAPU Delta Modulation Address Register 0x4012
-	.long _4013W		@pAPU Delta Modulation Data Length Register 0x4013
+	.long sndWr4013		@pAPU Delta Modulation Data Length Register 0x4013
 	.long _4014W		@$4014: Sprite DMA transfer
 	.long sndWr4015
 	.long _4016W
@@ -309,6 +306,11 @@ sndWr4010:
 	bl soundwrite
 	ldmfd sp!,{r0,addy,lr}
 	b _4010W
+sndWr4013:
+	stmfd sp!,{r0,addy,lr}
+	bl soundwrite
+	ldmfd sp!,{r0,addy,lr}
+	b _4013W
 sndWr4015:
 	stmfd sp!,{r0,addy,lr}
 	bl soundwrite
