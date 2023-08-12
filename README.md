@@ -1,4 +1,4 @@
-# RP2A03 V0.0.6
+# RP2A03 V0.0.7
 RP2A03 (NES) cpu/sound chip emulator for ARM32.
 
 To connect devices to memory range 0x4020-5FFF use rp2A03MemRead & rp2A03MemWrite.
