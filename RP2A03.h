@@ -59,18 +59,18 @@ typedef struct {
 	u8 ch4Length;
 
 	u8 rp2A03DMA;
-	u8 rp2A03Control;;
+	u8 rp2A03Control;
 	u8 rp2A03IOReg;
 	u8 rp2A03FCounter;
 
 	u8 rp2A03Padding1[8];
 	u32 rp2A03DMCCount;
 
-	void *rp2A03MemRead;		// For reads 4020-5FFF
-	void *rp2A03MemWrite;		// For writes 4020-5FFF
-	void *rp2A03IORead0;		// For reads 4016
-	void *rp2A03IORead1;		// For reads 4017
-	void *rp2A03IOWrite;		// For writes 4016
+	u8 (*rp2A03MemRead)(u16 adr);		// For reads 4020-5FFF
+	void (*rp2A03MemWrite)(u8 data);	// For writes 4020-5FFF
+	u8 (*rp2A03IORead0)(void);			// For reads 4016
+	u8 (*rp2A03IORead1)(void);			// For reads 4017
+	void (*rp2A03IOWrite)(u8 data);		// For writes 4016
 
 } RP2A03;
 

@@ -39,6 +39,7 @@
 ;@ r12  = rp2a03ptr.
 ;@----------------------------------------------------------------------------
 rp2A03Mixer:				;@ r0=len, r1=dest, r2=rp2a03ptr
+	.type   rp2A03Mixer STT_FUNC
 ;@----------------------------------------------------------------------------
 	mov r0,r0,lsl#2
 	stmfd sp!,{r4-r11,lr}
@@ -87,6 +88,7 @@ innerMixLoop:
 	.align 2
 ;@----------------------------------------------------------------------------
 rp2A03Init:					;@ In r0=rp2a03ptr.
+	.type   rp2A03Init STT_FUNC
 ;@----------------------------------------------------------------------------
 	;@ Setup mapping for $4000-$5FFF
 	ldr r1,=rp2A03Read
@@ -99,7 +101,7 @@ rp2A03Init:					;@ In r0=rp2a03ptr.
 	ldr r1,=empty_R
 	ldr r2,=empty_W
 	str r1,[r0,#rp2A03MemRead]
-	str r1,[r0,#rp2A03MemWrite]
+	str r2,[r0,#rp2A03MemWrite]
 	str r1,[r0,#rp2A03IORead0]
 	str r1,[r0,#rp2A03IORead1]
 	str r2,[r0,#rp2A03IOWrite]
@@ -107,6 +109,7 @@ rp2A03Init:					;@ In r0=rp2a03ptr.
 	b m6502Init
 ;@----------------------------------------------------------------------------
 rp2A03Reset:				;@ In r0=rp2a03ptr.
+	.type   rp2A03Reset STT_FUNC
 ;@----------------------------------------------------------------------------
 	stmfd sp!,{rp2a03ptr,lr}
 	mov rp2a03ptr,r0
@@ -160,13 +163,13 @@ rp2A03GetStateSize:			;@ Out r0=state size.
 	bx lr
 
 ;@----------------------------------------------------------------------------
-rp2A03Frame:				;@ rp2a03ptr = r10 = pointer to struct
+rp2A03Frame:				;@ rp2a03ptr = r10
 ;@----------------------------------------------------------------------------
 	stmfd sp!,{r4,lr}
 	ldmfd sp!,{r4,lr}
 	bx lr
 ;@----------------------------------------------------------------------------
-rp2A03SetIRQPin:			;@ rp2a03ptr = r10 = pointer to struct
+rp2A03SetIRQPin:			;@ rp2a03ptr = r10
 ;@----------------------------------------------------------------------------
 	cmp r0,#0
 	ldrb r0,[rp2a03ptr,#rp2A03IrqPending]
@@ -175,7 +178,7 @@ rp2A03SetIRQPin:			;@ rp2a03ptr = r10 = pointer to struct
 	strb r0,[rp2a03ptr,#rp2A03IrqPending]
 	b m6502SetIRQPin
 ;@----------------------------------------------------------------------------
-rp2A03SetDmcIRQ:			;@ rp2a03ptr = r10 = pointer to struct
+rp2A03SetDmcIRQ:			;@ rp2a03ptr = r10
 ;@----------------------------------------------------------------------------
 	bx lr
 	ldrb r0,[rp2a03ptr,#rp2A03Status]
@@ -481,6 +484,10 @@ _4012W:						;@ DMC Sample address
 ;@----------------------------------------------------------------------------
 _4013W:						;@ DMC Sample Length
 ;@----------------------------------------------------------------------------
+	mov r0,r0,lsl#4
+	add r0,r0,#1
+	mov r0,r0,lsl#3
+	str r0,[rp2a03ptr,#rp2A03DMCCount]
 	bx lr
 ;@----------------------------------------------------------------------------
 _4014W:						;@ Transfer 256 bytes from written page to $2004
