@@ -484,10 +484,6 @@ _4012W:						;@ DMC Sample address
 ;@----------------------------------------------------------------------------
 _4013W:						;@ DMC Sample Length
 ;@----------------------------------------------------------------------------
-	mov r0,r0,lsl#4
-	add r0,r0,#1
-	mov r0,r0,lsl#3
-	str r0,[rp2a03ptr,#rp2A03DMCCount]
 	bx lr
 ;@----------------------------------------------------------------------------
 _4014W:						;@ Transfer 256 bytes from written page to $2004
@@ -556,9 +552,11 @@ startDMC:
 	adr r2,dmcPeriodTableNTSC
 //	adr r2,dmcPeriodTablePAL
 	ldrh r1,[r2,r1]
-	mov r0,r0,lsl#7			@ x16 bytes x8 bits
-	mul r0,r1,r0			@ x rate
-	add r0,r0,r0,lsl#1		@ x3 because PPU cycles
+	mov r0,r0,lsl#4			;@ x16 bytes
+	add r0,r0,#1			;@ +1 byte
+	mov r0,r0,lsl#3			;@ x8 bits
+	mul r0,r1,r0			;@ x rate
+	add r0,r0,r0,lsl#1		;@ x3 because PPU cycles
 	str r0,[rp2a03ptr,#rp2A03DMCCount]
 
 	ldrb r0,[rp2a03ptr,#rp2A03Status]
