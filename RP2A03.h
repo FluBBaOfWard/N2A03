@@ -7,6 +7,18 @@ extern "C" {
 
 #include "ARM6502/M6502.h"
 
+/** Revision of APU/CPU chip */
+typedef enum {
+	/** NTSC no letter revision */
+	REV_RP2A03		= 0x00,
+	/** PAL revision */
+	REV_RP2A07		= 0x01,
+	/** NTSC E letter revision */
+	REV_RP2A03E		= 0x02,
+	/** NTSC G letter revision */
+	REV_RP2A03G		= 0x03,
+} RP2A03REV;
+
 typedef struct {
 	M6502Core m6502;
 	// rp2A03State:					;@
@@ -34,7 +46,8 @@ typedef struct {
 	u8 input1;
 	u8 output0;
 	u8 irqPending;
-	u8 rp2A03Padding0[2];
+	RP2A03REV revision;
+	u8 rp2A03Padding0[1];
 
 	// rp2a03Regs:
 	u8 ch0Duty;
@@ -66,17 +79,22 @@ typedef struct {
 	u8 rp2A03Padding1[8];
 	u32 rp2A03DMCCount;
 
-	u8 (*rp2A03MemRead)(u16 adr);		// For reads 4020-5FFF
-	void (*rp2A03MemWrite)(u8 data);	// For writes 4020-5FFF
-	u8 (*rp2A03IORead0)(void);			// For reads 4016
-	u8 (*rp2A03IORead1)(void);			// For reads 4017
-	void (*rp2A03IOWrite)(u8 data);		// For writes 4016
+	/** For reads 4020-5FFF */
+	u8 (*rp2A03MemRead)(u16 adr);
+	/** For writes 4020-5FFF */
+	void (*rp2A03MemWrite)(u8 data);
+	/** For 4016 reads */
+	u8 (*rp2A03IORead0)(void);
+	/** For 4017 reads */
+	u8 (*rp2A03IORead1)(void);
+	/** For 4016 writes */
+	void (*rp2A03IOWrite)(u8 data);
 
 } RP2A03;
 
 void rp2A03Init(const RP2A03 *chip);
 
-void rp2A03Reset(const RP2A03 *chip);
+void rp2A03Reset(const RP2A03 *chip, RP2A03REV rev);
 
 /**
  * Saves the state of the RP2A03 chip to the destination.

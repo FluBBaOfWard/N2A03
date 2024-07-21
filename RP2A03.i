@@ -5,7 +5,17 @@
 
 rp2A03SetResetPin = m6502SetResetPin
 rp2A03SetNMIPin = m6502SetNMIPin
-rp2A03RestoreAndRunXCycles = m6502RestoreAndRunXCycles
+
+/** Revision of chip */
+	.equ REV_RP2A03,	0x00	;@ NTSC no letter revision
+	.equ REV_RP2A07,	0x01	;@ PAL revision
+	.equ REV_RP2A03E,	0x02	;@ NTSC E letter revision
+	.equ REV_RP2A03G,	0x03	;@ NTSC G letter revision
+
+/** Internal IRQ flags */
+	.equ IRQ_FRAME, 	0x01	;@ Frame IRQ flag
+	.equ IRQ_DPCM,		0x02	;@ DPCM IRQ flag
+	.equ IRQ_EXTERN,	0x04	;@ Extern IRQ flag
 
 						;@ RP2A03.s
 	rp2a03ptr	.req m6502ptr
@@ -37,7 +47,8 @@ input0:			.byte 0
 input1:			.byte 0
 output0:		.byte 0
 rp2A03IrqPending:	.byte 0
-rp2A03Padding0:	.space 2
+rp2A03Revision:	.byte 0
+rp2A03Padding0:	.space 1
 
 rp2A03Regs:
 ch0Duty:		.byte 0			;@ 4000

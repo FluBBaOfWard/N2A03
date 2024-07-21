@@ -6,8 +6,8 @@
 
 	.global rp2A03Init
 	.global rp2A03Reset
+	.global rp2A03SetRevision
 	.global rp2A03SetIRQPin
-	.global rp2A03SetDmcIRQ
 	.global rp2A03RunXCycles
 	.global rp2A03SaveState
 	.global rp2A03LoadState
@@ -23,6 +23,7 @@
 	.syntax unified
 	.arm
 
+#ifndef ARM7SOUND
 	.section .itcm
 	.align 2
 ;@----------------------------------------------------------------------------
@@ -83,7 +84,7 @@ innerMixLoop:
 	ldmfd sp!,{r4-r11,lr}
 	bx lr
 ;@----------------------------------------------------------------------------
-
+#endif
 	.section .text
 	.align 2
 ;@----------------------------------------------------------------------------
@@ -108,10 +109,10 @@ rp2A03Init:					;@ In r0=rp2a03ptr.
 
 	b m6502Init
 ;@----------------------------------------------------------------------------
-rp2A03Reset:				;@ In r0=rp2a03ptr.
+rp2A03Reset:				;@ In r0=rp2a03ptr, r1=RP2A03 Revision.
 	.type   rp2A03Reset STT_FUNC
 ;@----------------------------------------------------------------------------
-	stmfd sp!,{rp2a03ptr,lr}
+	stmfd sp!,{r1,rp2a03ptr,lr}
 	mov rp2a03ptr,r0
 	bl m6502Reset
 
@@ -124,6 +125,9 @@ rp2A03Reset:				;@ In r0=rp2a03ptr.
 	str r0,[rp2a03ptr,#rng]
 	mov r0,#WFEED_SN			;@ White noise
 	str r0,[rp2a03ptr,#noiseFB]
+
+	ldmfd sp!,{r0}
+	bl rp2A03SetRevision
 
 	ldmfd sp!,{rp2a03ptr,lr}
 	bx lr
@@ -163,6 +167,13 @@ rp2A03GetStateSize:			;@ Out r0=state size.
 	bx lr
 
 ;@----------------------------------------------------------------------------
+rp2A03SetRevision:			;@ rp2a03ptr = r10
+;@----------------------------------------------------------------------------
+	cmp r0,#REV_RP2A07			;@ PAL?
+	movne r0,#REV_RP2A03		;@ Nope use NTSC
+	strb r0,[rp2a03ptr,#rp2A03Revision]
+	bx lr
+;@----------------------------------------------------------------------------
 rp2A03Frame:				;@ rp2a03ptr = r10
 ;@----------------------------------------------------------------------------
 	stmfd sp!,{r4,lr}
@@ -173,19 +184,8 @@ rp2A03SetIRQPin:			;@ rp2a03ptr = r10
 ;@----------------------------------------------------------------------------
 	cmp r0,#0
 	ldrb r0,[rp2a03ptr,#rp2A03IrqPending]
-	biceq r0,r0,#0x04
-	orrne r0,r0,#0x04
-	strb r0,[rp2a03ptr,#rp2A03IrqPending]
-	b m6502SetIRQPin
-;@----------------------------------------------------------------------------
-rp2A03SetDmcIRQ:			;@ rp2a03ptr = r10
-;@----------------------------------------------------------------------------
-	bx lr
-	ldrb r0,[rp2a03ptr,#rp2A03Status]
-	orr r0,r0,#0x80
-	strb r0,[rp2a03ptr,#rp2A03Status]
-	ldrb r0,[rp2a03ptr,#rp2A03IrqPending]
-	orr r0,r0,#0x02				;@ Set DMC IRQ
+	biceq r0,r0,#IRQ_EXTERN
+	orrne r0,r0,#IRQ_EXTERN
 	strb r0,[rp2a03ptr,#rp2A03IrqPending]
 	b m6502SetIRQPin
 ;@----------------------------------------------------------------------------
@@ -193,26 +193,26 @@ rp2A03RunXCycles:			;@ r0 = number of cycles to run
 ;@----------------------------------------------------------------------------
 	ldr r1,[rp2a03ptr,#rp2A03DMCCount]	;@ DMC Channel Enabled?
 	cmp r1,#0
-	beq noDMCIRQ
+	beq m6502RunXCycles
 	subs r1,r1,r0
 	movmi r1,#0
 	str r1,[rp2a03ptr,#rp2A03DMCCount]
-	bhi noDMCIRQ
+	bhi m6502RunXCycles
 	ldrb r1,[rp2a03ptr,#ch4Frequency]
 	tst r1,#0x80						;@ DMC IRQ Enabled?
 	ldrb r1,[rp2a03ptr,#rp2A03Status]
-	bic r1,r1,#0x10
+	bic r1,r1,#0x10						;@ DMC not active now
 	orrne r1,r1,#0x80
 	strb r1,[rp2a03ptr,#rp2A03Status]
-	beq noDMCIRQ
+	beq m6502RunXCycles
 	stmfd sp!,{r0,lr}
 	ldrb r0,[rp2a03ptr,#rp2A03IrqPending]
-	orr r0,r0,#0x02				;@ Set DMC IRQ
+	orr r0,r0,#IRQ_DPCM					;@ Set DMC IRQ
 	strb r0,[rp2a03ptr,#rp2A03IrqPending]
 	bl m6502SetIRQPin
 	ldmfd sp!,{r0,lr}
-noDMCIRQ:
 	b m6502RunXCycles
+
 ;@----------------------------------------------------------------------------
 rp2A03Read:					;@ I/O read  (0x4000-0x5FFF)
 ;@----------------------------------------------------------------------------
@@ -231,14 +231,14 @@ rp2A03Read:					;@ I/O read  (0x4000-0x5FFF)
 ;@----------------------------------------------------------------------------
 _4015R:						;@ $4015: Status read
 ;@----------------------------------------------------------------------------
-	// Check remaining length of all channels + interrupts
+	;@ Check remaining length of all channels + interrupts
 	ldrb r0,[rp2a03ptr,#rp2A03Status]
 	stmfd sp!,{r0,lr}
-	bic r0,r0,#0xC0				;@ Clear IRQ status
+	bic r0,r0,#0x40				;@ Clear Frame IRQ status
 	strb r0,[rp2a03ptr,#rp2A03Status]
 
 	ldrb r0,[rp2a03ptr,#rp2A03IrqPending]
-	bic r0,r0,#0x01				;@ Clear Frame IRQ
+	bic r0,r0,#IRQ_FRAME		;@ Clear Frame IRQ
 	strb r0,[rp2a03ptr,#rp2A03IrqPending]
 	bl m6502SetIRQPin			;@ Update IRQ pin on CPU
 	ldmfd sp!,{r0,pc}
@@ -272,27 +272,27 @@ rp2A03Write:					;@ I/O write  (0x4000-0x5FFF)
 ;@----------------------------------------------------------------------------
 #ifdef ARM7SOUND
 writeTbl:
-	.long soundwrite	@pAPU Pulse #1 Control Register 0x4000
-	.long soundwrite	@pAPU Pulse #1 Ramp Control Register 0x4001
-	.long soundwrite	@pAPU Pulse #1 Fine Tune (FT) Register 0x4002
-	.long soundwrite	@pAPU Pulse #1 Coarse Tune (CT) Register 0x4003
-	.long soundwrite	@pAPU Pulse #2 Control Register 0x4004
-	.long soundwrite	@pAPU Pulse #2 Ramp Control Register 0x4005
-	.long soundwrite	@pAPU Pulse #2 Fine Tune Register 0x4006
-	.long soundwrite	@pAPU Pulse #2 Coarse Tune Register 0x4007
-	.long soundwrite	@pAPU Triangle Control Register #1 0x4008
+	.long soundwrite	;@ pAPU Pulse #1 Control Register 0x4000
+	.long soundwrite	;@ pAPU Pulse #1 Ramp Control Register 0x4001
+	.long soundwrite	;@ pAPU Pulse #1 Fine Tune (FT) Register 0x4002
+	.long soundwrite	;@ pAPU Pulse #1 Coarse Tune (CT) Register 0x4003
+	.long soundwrite	;@ pAPU Pulse #2 Control Register 0x4004
+	.long soundwrite	;@ pAPU Pulse #2 Ramp Control Register 0x4005
+	.long soundwrite	;@ pAPU Pulse #2 Fine Tune Register 0x4006
+	.long soundwrite	;@ pAPU Pulse #2 Coarse Tune Register 0x4007
+	.long soundwrite	;@ pAPU Triangle Control Register #1 0x4008
 	.long empty_W
-	.long soundwrite	@pAPU Triangle Frequency Register #1 0x400a
-	.long soundwrite	@pAPU Triangle Frequency Register #2 0x400b
-	.long soundwrite	@pAPU Noise Control Register #1 0x400c
+	.long soundwrite	;@ pAPU Triangle Frequency Register #1 0x400a
+	.long soundwrite	;@ pAPU Triangle Frequency Register #2 0x400b
+	.long soundwrite	;@ pAPU Noise Control Register #1 0x400c
 	.long empty_W
-	.long soundwrite	@pAPU Noise Frequency Register #1 0x400e
-	.long soundwrite	@pAPU Noise Frequency Register #2 0x400f
-	.long sndWr4010		@pAPU Delta Modulation Control Register 0x4010
-	.long soundwrite	@pAPU Delta Modulation D/A Register 0x4011
-	.long soundwrite	@pAPU Delta Modulation Address Register 0x4012
-	.long sndWr4013		@pAPU Delta Modulation Data Length Register 0x4013
-	.long _4014W		@$4014: Sprite DMA transfer
+	.long soundwrite	;@ pAPU Noise Frequency Register #1 0x400e
+	.long soundwrite	;@ pAPU Noise Frequency Register #2 0x400f
+	.long sndWr4010		;@ pAPU Delta Modulation Control Register 0x4010
+	.long soundwrite	;@ pAPU Delta Modulation D/A Register 0x4011
+	.long soundwrite	;@ pAPU Delta Modulation Address Register 0x4012
+	.long sndWr4013		;@ pAPU Delta Modulation Data Length Register 0x4013
+	.long _4014W		;@ $4014: Sprite DMA transfer
 	.long sndWr4015
 	.long _4016W
 	.long _4017W
@@ -416,10 +416,6 @@ _4008W:						;@ Triangle Linear counter
 	str r0,[rp2a03ptr,#ch2Volume]
 	bx lr
 ;@----------------------------------------------------------------------------
-_4009W:						;@ Unused
-;@----------------------------------------------------------------------------
-	bx lr
-;@----------------------------------------------------------------------------
 _400AW:						;@ Triangle Frequency (low)
 ;@----------------------------------------------------------------------------
 ;@----------------------------------------------------------------------------
@@ -442,13 +438,12 @@ _400CW:						;@ Noise Volume
 	str r0,[rp2a03ptr,#ch3Volume]
 	bx lr
 ;@----------------------------------------------------------------------------
-_400DW:						;@ Unused
-;@----------------------------------------------------------------------------
-	bx lr
-;@----------------------------------------------------------------------------
 _400EW:						;@ Noise Period
 ;@----------------------------------------------------------------------------
-	adr r2,noisePeriodTableNTSC
+	ldrb r1,[rp2a03ptr,#rp2A03Revision]
+	cmp r1,#REV_RP2A07			;@ PAL?
+	adreq r2,noisePeriodTablePAL
+	adrne r2,noisePeriodTableNTSC
 	mov r0,r0,lsl#1
 	ldrh r0,[r2,r0]
 	mov r0,r0,lsl#5
@@ -467,7 +462,7 @@ _4010W:						;@ DMC IRQ, Loop, Frequency
 	tst r0,#0x80				;@ DMC IRQ enable
 	bxne lr
 	ldrb r0,[rp2a03ptr,#rp2A03IrqPending]
-	bic r0,r0,#0x02				;@ Clear DMC IRQ
+	bic r0,r0,#IRQ_DPCM			;@ Clear DMC IRQ
 	strb r0,[rp2a03ptr,#rp2A03IrqPending]
 	b m6502SetIRQPin			;@ Update IRQ pin on CPU
 ;@----------------------------------------------------------------------------
@@ -488,7 +483,7 @@ _4013W:						;@ DMC Sample Length
 ;@----------------------------------------------------------------------------
 _4014W:						;@ Transfer 256 bytes from written page to $2004
 ;@----------------------------------------------------------------------------
-	ldr r1,=513*3*CYCLE		@ 513/514 is the right number...
+	ldr r1,=513*3*CYCLE		;@ 513/514 is the right number...
 	sub cycles,cycles,r1
 	stmfd sp!,{r3-r6,lr}
 
@@ -529,7 +524,7 @@ _4015W:						;@ Channel control
 	ldmfd sp!,{lr}
 
 	ldrb r0,[rp2a03ptr,#rp2A03IrqPending]
-	bic r0,r0,#0x02				;@ Clear DMC IRQ
+	bic r0,r0,#IRQ_DPCM			;@ Clear DMC IRQ
 	strb r0,[rp2a03ptr,#rp2A03IrqPending]
 	b m6502SetIRQPin			;@ Update IRQ pin on CPU
 ;@----------------------------------------------------------------------------
@@ -545,12 +540,14 @@ _4017W:						;@ $4017: FrameCounter
 ;@----------------------------------------------------------------------------
 startDMC:
 ;@----------------------------------------------------------------------------
-	ldrb r0,[rp2a03ptr,#ch4Length]
+	ldrb r0,[rp2a03ptr,#rp2A03Revision]
 	ldrb r1,[rp2a03ptr,#ch4Frequency]
+	cmp r0,#REV_RP2A07			;@ PAL?
+	adreq r2,dmcPeriodTablePAL
+	adrne r2,dmcPeriodTableNTSC
 	and r1,r1,#0xF
 	mov r1,r1,lsl#1
-	adr r2,dmcPeriodTableNTSC
-//	adr r2,dmcPeriodTablePAL
+	ldrb r0,[rp2a03ptr,#ch4Length]
 	ldrh r1,[r2,r1]
 	mov r0,r0,lsl#4			;@ x16 bytes
 	add r0,r0,#1			;@ +1 byte
