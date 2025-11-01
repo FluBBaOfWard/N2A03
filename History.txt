@@ -2,6 +2,9 @@ RP2A03 revision history
 -=-=-=-=-=-=-=-=-=-=-=-=-=-
 
 
+V0.0.9 - 2025-12-06 (FluBBa)
+	Updated cpu core.
+
 V0.0.8 - 2024-07-21 (FluBBa)
 	Added support for different models of the RP2A03.
 
@@ -12,7 +15,7 @@ V0.0.6 - 2023-06-03 (FluBBa)
 	Renamed N2A03 to RP2A03.
 	Better IRQ handling.
 	Added function pointers for read/write outside RP2A03.
-	Added "sprite" DMA function.
+	Added (sprite) DMA function.
 	Added DPCM IRQ counter.
 
 V0.0.5 - 2021-03-16 (FluBBa)
