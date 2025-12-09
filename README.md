@@ -10,7 +10,7 @@ To connect devices to 4016 OUT0-OUT2 use rp2A03IOWrite.
 
 ## Projects That use this CPU/sound core
 
-* https://github.com/FluBBaOfWard/NesDS
+* https://github.com/DS-Homebrew/NesDS
 * https://github.com/FluBBaOfWard/PunchOutDS
 
 ## Credits
