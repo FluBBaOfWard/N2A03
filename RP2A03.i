@@ -8,9 +8,9 @@ rp2A03SetNMIPin = m6502SetNMIPin
 
 /** Revision of chip */
 	.equ REV_RP2A03,	0x00	;@ NTSC no letter revision
-	.equ REV_RP2A07,	0x01	;@ PAL revision
-	.equ REV_RP2A03E,	0x02	;@ NTSC E letter revision
-	.equ REV_RP2A03G,	0x03	;@ NTSC G letter revision
+	.equ REV_RP2A03E,	0x01	;@ NTSC E letter revision
+	.equ REV_RP2A03G,	0x02	;@ NTSC G letter revision
+	.equ REV_RP2A07,	0x10	;@ PAL revision
 
 /** Internal IRQ flags */
 	.equ IRQ_FRAME, 	0x01	;@ Frame IRQ flag
@@ -42,7 +42,7 @@ ch2Volume:		.long 0
 ch3Volume:		.long 0
 
 rp2A03Status:	.byte 0
-dmcLoadCounter:	.byte 0			;@ ch4Dac
+frmCntPeriod:	.byte 0
 input0:			.byte 0
 input1:			.byte 0
 output0:		.byte 0
@@ -75,10 +75,11 @@ ch4Length:		.byte 0			;@ 4013
 rp2A03DMA:		.byte 0			;@ 4014 sprite DMA
 rp2A03Control:	.byte 0			;@ 4015
 rp2A03IOReg:	.byte 0			;@ 4016
-rp2A03FCounter:	.byte 0			;@ 4017
+rp2A03FCntCtr:	.byte 0			;@ 4017
 
 rp2A03Padding1:	.space 8		;@ 4018-401F
 rp2A03DMCCount:	.long 0
+rp2A03FrmCount:	.long 0
 rp2A03StateEnd:
 
 rp2A03MemRead:	.long 0			;@ For reads 4020-5FFF
@@ -86,6 +87,8 @@ rp2A03MemWrite:	.long 0			;@ For writes 4020-5FFF
 rp2A03IORead0:	.long 0			;@ For reads 4016
 rp2A03IORead1:	.long 0			;@ For reads 4017
 rp2A03IOWrite:	.long 0			;@ For writes 4016
+frameCntConst:	.long 0			;@ NTSC=3728, PAL=4156
+				.space 8
 rp2A03End:
 
 rp2A03Size = rp2A03End-rp2A03Start

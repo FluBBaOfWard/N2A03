@@ -41,7 +41,7 @@ typedef struct {
 	u32 ch3Volume;
 
 	u8 rp2A03Status;
-	u8 dmcLoadCounter;
+	u8 frmCntPeriod;
 	u8 input0;
 	u8 input1;
 	u8 output0;
@@ -74,10 +74,11 @@ typedef struct {
 	u8 rp2A03DMA;
 	u8 rp2A03Control;
 	u8 rp2A03IOReg;
-	u8 rp2A03FCounter;
+	u8 rp2A03FCntCtr;
 
 	u8 rp2A03Padding1[8];
 	u32 rp2A03DMCCount;
+	u32 rp2A03FrmCount;
 
 	/** For reads 4020-5FFF */
 	u8 (*rp2A03MemRead)(u16 adr);
@@ -89,12 +90,14 @@ typedef struct {
 	u8 (*rp2A03IORead1)(void);
 	/** For 4016 writes */
 	void (*rp2A03IOWrite)(u8 data);
+	u32 frameCntConst; // NTSC=3728, PAL=4156
+	u8 rp2A03Padding2[8];
 
 } RP2A03;
 
-void rp2A03Init(const RP2A03 *chip);
+void rp2A03Init(RP2A03 *chip);
 
-void rp2A03Reset(const RP2A03 *chip, RP2A03REV rev);
+void rp2A03Reset(RP2A03 *chip, RP2A03REV rev);
 
 /**
  * Saves the state of the RP2A03 chip to the destination.
@@ -119,7 +122,6 @@ int rp2A03LoadState(RP2A03 *chip, const void *source);
 int rp2A03GetStateSize(void);
 
 void rp2A03SetIRQPin(bool set);
-void rp2A03Frame(void);
 void rp2A03Mixer(int length, void *dest);
 void rp2A03Read(short address);
 void rp2A03Write(short address, unsigned char value);

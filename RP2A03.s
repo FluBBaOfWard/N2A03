@@ -12,7 +12,6 @@
 	.global rp2A03SaveState
 	.global rp2A03LoadState
 	.global rp2A03GetStateSize
-	.global rp2A03Frame
 	.global rp2A03Mixer
 	.global rp2A03Read
 	.global rp2A03Write
@@ -172,6 +171,9 @@ rp2A03SetRevision:			;@ rp2a03ptr = r10
 	cmp r0,#REV_RP2A07			;@ PAL?
 	movne r0,#REV_RP2A03		;@ Nope use NTSC
 	strb r0,[rp2a03ptr,#rp2A03Revision]
+	ldreq r0,=4156*2*3
+	ldrne r0,=3728*2*3
+	str r0,[rp2a03ptr,#frameCntConst]
 	bx lr
 ;@----------------------------------------------------------------------------
 rp2A03Frame:				;@ rp2a03ptr = r10
@@ -191,6 +193,36 @@ rp2A03SetIRQPin:			;@ rp2a03ptr = r10
 ;@----------------------------------------------------------------------------
 rp2A03RunXCycles:			;@ r0 = number of cycles to run
 ;@----------------------------------------------------------------------------
+	ldr r1,[rp2a03ptr,#rp2A03FrmCount]
+	subs r1,r1,r0
+	ldrls r2,[rp2a03ptr,#frameCntConst]
+	addls r1,r1,r2
+	str r1,[rp2a03ptr,#rp2A03FrmCount]
+	bhi noPeriodExe
+	ldrb r1,[rp2a03ptr,#frmCntPeriod]
+	subs r1,r1,#1
+	bne noFrmExe
+	ldrb r2,[rp2a03ptr,#rp2A03FCntCtr]
+	tst r2,#0x80
+	moveq r1,#4
+	movne r1,#5
+	cmp r2,#0
+	bne noFrmExe
+
+	stmfd sp!,{r0,lr}
+	ldrb r0,[rp2a03ptr,#rp2A03Status]
+	orr r0,r0,#0x40						;@ Set Frame IRQ status
+	strb r0,[rp2a03ptr,#rp2A03Status]
+	ldrb r0,[rp2a03ptr,#rp2A03IrqPending]
+	orr r0,r0,#IRQ_FRAME				;@ Set FRAME IRQ
+	strb r0,[rp2a03ptr,#rp2A03IrqPending]
+	bl m6502SetIRQPin
+	ldmfd sp!,{r0,lr}
+
+noFrmExe:
+	strb r1,[rp2a03ptr,#frmCntPeriod]
+noPeriodExe:
+
 	ldr r1,[rp2a03ptr,#rp2A03DMCCount]	;@ DMC Channel Enabled?
 	cmp r1,#0
 	beq m6502RunXCycles
@@ -233,6 +265,14 @@ _4015R:						;@ $4015: Status read
 ;@----------------------------------------------------------------------------
 	;@ Check remaining length of all channels + interrupts
 	ldrb r0,[rp2a03ptr,#rp2A03Status]
+#ifdef ARM7SOUND
+	stmfd sp!,{r0,lr}
+	bl _4015r
+	and r1,r0,#0x0F
+	ldmfd sp!,{r0,lr}
+	bic r0,r0,#0x0F
+	orr r0,r0,r1
+#endif
 	stmfd sp!,{r0,lr}
 	bic r0,r0,#0x40				;@ Clear Frame IRQ status
 	strb r0,[rp2a03ptr,#rp2A03Status]
@@ -459,6 +499,7 @@ _400FW:						;@ Noise Length
 ;@----------------------------------------------------------------------------
 _4010W:						;@ DMC IRQ, Loop, Frequency
 ;@----------------------------------------------------------------------------
+	strb r0,[rp2a03ptr,#ch4Frequency]
 	tst r0,#0x80				;@ DMC IRQ enable
 	bxne lr
 	ldrb r0,[rp2a03ptr,#rp2A03IrqPending]
@@ -468,7 +509,7 @@ _4010W:						;@ DMC IRQ, Loop, Frequency
 ;@----------------------------------------------------------------------------
 _4011W:						;@ DMC DAC
 ;@----------------------------------------------------------------------------
-	strb r0,[rp2a03ptr,#dmcLoadCounter]
+	strb r0,[rp2a03ptr,#ch4Dac]
 	bx lr
 
 ;@----------------------------------------------------------------------------
@@ -517,9 +558,14 @@ _4015W:						;@ Channel control
 	ands r1,r0,#0x08
 	streq r1,[rp2a03ptr,#ch3Volume]
 
-	ands r1,r0,#0x10
-	streq r1,[rp2a03ptr,#rp2A03DMCCount]
+	ldrb r1,[rp2a03ptr,#rp2A03Status]
+	strb r0,[rp2a03ptr,#rp2A03Control]
+
+	ands r2,r0,#0x10
+	streq r2,[rp2a03ptr,#rp2A03DMCCount]
 	stmfd sp!,{lr}
+//	eor r1,r1,r2
+//	ands r1,r1,r2
 	blne startDMC
 	ldmfd sp!,{lr}
 
@@ -536,7 +582,23 @@ _4016W:						;@ $4016: Output 0 write
 ;@----------------------------------------------------------------------------
 _4017W:						;@ $4017: FrameCounter
 ;@----------------------------------------------------------------------------
-	bx lr
+	and r0,r0,#0xC0
+	strb r0,[rp2a03ptr,#rp2A03FCntCtr]
+	tst r0,#0x80
+	moveq r1,#4
+	movne r1,#5
+	strb r1,[rp2a03ptr,#frmCntPeriod]
+	ldr r1,[rp2a03ptr,#frameCntConst]
+	str r1,[rp2a03ptr,#rp2A03FrmCount]
+	tst r0,#0x40
+	bxeq lr
+	ldrb r0,[rp2a03ptr,#rp2A03Status]
+	bic r0,r0,#0x40				;@ Clear Frame IRQ status
+	strb r0,[rp2a03ptr,#rp2A03Status]
+	ldrb r0,[rp2a03ptr,#rp2A03IrqPending]
+	bic r0,r0,#IRQ_FRAME		;@ Clear Frame IRQ
+	strb r0,[rp2a03ptr,#rp2A03IrqPending]
+	b m6502SetIRQPin			;@ Update IRQ pin on CPU
 ;@----------------------------------------------------------------------------
 startDMC:
 ;@----------------------------------------------------------------------------

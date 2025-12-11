@@ -1,7 +1,6 @@
 RP2A03 To do
 -----------
 
-	Fix frame IRQ!
 	Fix noise generation.
 	DMCA.
 	Sweeps.
