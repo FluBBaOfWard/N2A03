@@ -2,9 +2,10 @@ RP2A03 revision history
 -=-=-=-=-=-=-=-=-=-=-=-=-=-
 
 
-V0.0.9 - 2025-12-11 (FluBBa)
+V0.0.9 - 2025-12-14 (FluBBa)
 	Updated cpu core (Fixed undocumented NOPs, SHA, SHS, SHX & SHY).
 	Added APU frame (IRQ) emulation.
+	Fixed handling of DMC flags/IRQ.
 
 V0.0.8 - 2024-07-21 (FluBBa)
 	Added support for different models of the RP2A03.

@@ -231,6 +231,8 @@ noPeriodExe:
 	str r1,[rp2a03ptr,#rp2A03DMCCount]
 	bhi m6502RunXCycles
 	ldrb r1,[rp2a03ptr,#ch4Frequency]
+	tst r1,#0x40						;@ DMC Loop Enabled?
+	bne restartDMC
 	tst r1,#0x80						;@ DMC IRQ Enabled?
 	ldrb r1,[rp2a03ptr,#rp2A03Status]
 	bic r1,r1,#0x10						;@ DMC not active now
@@ -242,6 +244,12 @@ noPeriodExe:
 	orr r0,r0,#IRQ_DPCM					;@ Set DMC IRQ
 	strb r0,[rp2a03ptr,#rp2A03IrqPending]
 	bl m6502SetIRQPin
+	ldmfd sp!,{r0,lr}
+	b m6502RunXCycles
+
+restartDMC:
+	stmfd sp!,{r0,lr}
+	bl startDMC
 	ldmfd sp!,{r0,lr}
 	b m6502RunXCycles
 
@@ -502,6 +510,9 @@ _4010W:						;@ DMC IRQ, Loop, Frequency
 	strb r0,[rp2a03ptr,#ch4Frequency]
 	tst r0,#0x80				;@ DMC IRQ enable
 	bxne lr
+	ldrb r0,[rp2a03ptr,#rp2A03Status]
+	bic r0,r0,#0x80
+	strb r0,[rp2a03ptr,#rp2A03Status]
 	ldrb r0,[rp2a03ptr,#rp2A03IrqPending]
 	bic r0,r0,#IRQ_DPCM			;@ Clear DMC IRQ
 	strb r0,[rp2a03ptr,#rp2A03IrqPending]
@@ -549,6 +560,7 @@ dmaLoop:
 ;@----------------------------------------------------------------------------
 _4015W:						;@ Channel control
 ;@----------------------------------------------------------------------------
+	and r0,r0,#0x1F
 	ands r1,r0,#0x01
 	streq r1,[rp2a03ptr,#ch0Volume]
 	ands r1,r0,#0x02
@@ -558,14 +570,18 @@ _4015W:						;@ Channel control
 	ands r1,r0,#0x08
 	streq r1,[rp2a03ptr,#ch3Volume]
 
-	ldrb r1,[rp2a03ptr,#rp2A03Status]
 	strb r0,[rp2a03ptr,#rp2A03Control]
-
+	ldrb r1,[rp2a03ptr,#rp2A03Status]
+	orr r2,r0,#0x40
+	and r1,r1,r2
 	ands r2,r0,#0x10
+	orr r0,r1,r2
+	strb r0,[rp2a03ptr,#rp2A03Status]
+
 	streq r2,[rp2a03ptr,#rp2A03DMCCount]
 	stmfd sp!,{lr}
-//	eor r1,r1,r2
-//	ands r1,r1,r2
+	eor r1,r1,r2
+	ands r1,r1,r2
 	blne startDMC
 	ldmfd sp!,{lr}
 
@@ -617,10 +633,6 @@ startDMC:
 	mul r0,r1,r0			;@ x rate
 	add r0,r0,r0,lsl#1		;@ x3 because PPU cycles
 	str r0,[rp2a03ptr,#rp2A03DMCCount]
-
-	ldrb r0,[rp2a03ptr,#rp2A03Status]
-	orr r0,r0,#0x10
-	strb r0,[rp2a03ptr,#rp2A03Status]
 	bx lr
 ;@----------------------------------------------------------------------------
 pulseLengthTable:
