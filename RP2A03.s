@@ -195,21 +195,20 @@ rp2A03RunXCycles:			;@ r0 = number of cycles to run
 ;@----------------------------------------------------------------------------
 	ldr r1,[rp2a03ptr,#rp2A03FrmCount]
 	subs r1,r1,r0
-	ldrls r2,[rp2a03ptr,#frameCntConst]
-	addls r1,r1,r2
-	str r1,[rp2a03ptr,#rp2A03FrmCount]
 	bhi noPeriodExe
+	ldr r2,[rp2a03ptr,#frameCntConst]
+	add r1,r1,r2
 	stmfd sp!,{r0,lr}
-	ldrb r1,[rp2a03ptr,#frmCntPeriod]
+	ldrb r0,[rp2a03ptr,#frmCntPeriod]
 	ldrb r2,[rp2a03ptr,#rp2A03FCntCtr]
+	add r0,r0,#1
 	tst r2,#0x80
-	moveq r0,#4
-	movne r0,#5
-	add r1,r1,#1
-	cmp r1,r0
-	moveq r1,#0
-	strb r1,[rp2a03ptr,#frmCntPeriod]
-	cmpne r1,#2
+	moveq addy,#4
+	movne addy,#5
+	cmp r0,addy
+	moveq r0,#0
+	strb r0,[rp2a03ptr,#frmCntPeriod]
+	cmpne r0,#2
 	bleq clockAPULength
 
 	cmp r2,#0
@@ -225,6 +224,7 @@ rp2A03RunXCycles:			;@ r0 = number of cycles to run
 noFrmExe:
 	ldmfd sp!,{r0,lr}
 noPeriodExe:
+	str r1,[rp2a03ptr,#rp2A03FrmCount]
 
 	ldr r1,[rp2a03ptr,#rp2A03DMCCount]	;@ DMC Channel Enabled?
 	cmp r1,#0
