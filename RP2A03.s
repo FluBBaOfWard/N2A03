@@ -199,17 +199,22 @@ rp2A03RunXCycles:			;@ r0 = number of cycles to run
 	addls r1,r1,r2
 	str r1,[rp2a03ptr,#rp2A03FrmCount]
 	bhi noPeriodExe
+	stmfd sp!,{r0,lr}
 	ldrb r1,[rp2a03ptr,#frmCntPeriod]
-	subs r1,r1,#1
-	bne noFrmExe
 	ldrb r2,[rp2a03ptr,#rp2A03FCntCtr]
 	tst r2,#0x80
-	moveq r1,#4
-	movne r1,#5
+	moveq r0,#4
+	movne r0,#5
+	add r1,r1,#1
+	cmp r1,r0
+	moveq r1,#0
+	strb r1,[rp2a03ptr,#frmCntPeriod]
+	cmpne r1,#2
+	bleq clockAPULength
+
 	cmp r2,#0
 	bne noFrmExe
 
-	stmfd sp!,{r0,lr}
 	ldrb r0,[rp2a03ptr,#rp2A03Status]
 	orr r0,r0,#0x40						;@ Set Frame IRQ status
 	strb r0,[rp2a03ptr,#rp2A03Status]
@@ -217,10 +222,8 @@ rp2A03RunXCycles:			;@ r0 = number of cycles to run
 	orr r0,r0,#IRQ_FRAME				;@ Set FRAME IRQ
 	strb r0,[rp2a03ptr,#rp2A03IrqPending]
 	bl m6502SetIRQPin
-	ldmfd sp!,{r0,lr}
-
 noFrmExe:
-	strb r1,[rp2a03ptr,#frmCntPeriod]
+	ldmfd sp!,{r0,lr}
 noPeriodExe:
 
 	ldr r1,[rp2a03ptr,#rp2A03DMCCount]	;@ DMC Channel Enabled?
@@ -254,6 +257,35 @@ restartDMC:
 	b m6502RunXCycles
 
 ;@----------------------------------------------------------------------------
+clockAPULength:
+;@----------------------------------------------------------------------------
+	ldr r0,[rp2a03ptr,#ch0Length]
+	ldrb r1,[rp2a03ptr,#ch0Duty]
+	mvn r1,r1,lsl#19				;@ Length Counter Halt?
+	and r1,r1,#0x01000000
+	rsbs r0,r1,r0,ror#8
+	biccc r0,r0,#0xFF000000
+	ldrb r1,[rp2a03ptr,#ch1Duty]
+	mvn r1,r1,lsl#19				;@ Length Counter Halt?
+	and r1,r1,#0x01000000
+	rsbs r0,r1,r0,ror#8
+	biccc r0,r0,#0xFF000000
+	ldrb r1,[rp2a03ptr,#ch2Duty]
+	mvn r1,r1,lsl#17				;@ Length Counter Halt?
+	and r1,r1,#0x01000000
+	rsbs r0,r1,r0,ror#8
+	biccc r0,r0,#0xFF000000
+	ldrb r1,[rp2a03ptr,#ch3Duty]
+	mvn r1,r1,lsl#19				;@ Length Counter Halt?
+	and r1,r1,#0x01000000
+	rsbscc r0,r1,r0,ror#8
+	biccc r0,r0,#0xFF000000
+	str r0,[rp2a03ptr,#ch0Length]
+;@----------------------------------------------------------------------------
+clockAPUEnvelope:
+;@----------------------------------------------------------------------------
+	bx lr
+;@----------------------------------------------------------------------------
 rp2A03Read:					;@ I/O read  (0x4000-0x5FFF)
 ;@----------------------------------------------------------------------------
 	sub r1,addy,#0x4000
@@ -273,18 +305,27 @@ _4015R:						;@ $4015: Status read
 ;@----------------------------------------------------------------------------
 	;@ Check remaining length of all channels + interrupts
 	ldrb r0,[rp2a03ptr,#rp2A03Status]
+	bic r1,r0,#0x40				;@ Clear Frame IRQ status
+	strb r1,[rp2a03ptr,#rp2A03Status]
+	and r0,r0,#0xF0
 #ifdef ARM7SOUND
 	stmfd sp!,{r0,lr}
 	bl _4015r
 	and r1,r0,#0x0F
 	ldmfd sp!,{r0,lr}
-	bic r0,r0,#0x0F
 	orr r0,r0,r1
+#else
+	ldr r1,[rp2a03ptr,#ch0Length]
+	tst r1,#0x000000FF
+	orrne r0,r0,#1
+	tst r1,#0x0000FF00
+	orrne r0,r0,#2
+	tst r1,#0x00FF0000
+	orrne r0,r0,#4
+	tst r1,#0xFF000000
+	orrne r0,r0,#8
 #endif
 	stmfd sp!,{r0,lr}
-	bic r0,r0,#0x40				;@ Clear Frame IRQ status
-	strb r0,[rp2a03ptr,#rp2A03Status]
-
 	ldrb r0,[rp2a03ptr,#rp2A03IrqPending]
 	bic r0,r0,#IRQ_FRAME		;@ Clear Frame IRQ
 	strb r0,[rp2a03ptr,#rp2A03IrqPending]
@@ -343,7 +384,7 @@ writeTbl:
 	.long _4014W		;@ $4014: Sprite DMA transfer
 	.long sndWr4015
 	.long _4016W
-	.long _4017W
+	.long sndWr4017
 	.long empty_W
 	.long empty_W
 	.long empty_W
@@ -367,6 +408,11 @@ sndWr4015:
 	bl soundwrite
 	ldmfd sp!,{r0,addy,lr}
 	b _4015W
+sndWr4017:
+	stmfd sp!,{r0,addy,lr}
+	bl soundwrite
+	ldmfd sp!,{r0,addy,lr}
+	b _4017W
 #else
 writeTbl:
 	.long _4000W
@@ -418,16 +464,21 @@ _4001W:						;@ Pulse 1 Sweep unit
 ;@----------------------------------------------------------------------------
 _4002W:						;@ Pulse 1 Frequency (low)
 ;@----------------------------------------------------------------------------
-;@----------------------------------------------------------------------------
-_4003W:						;@ Pulse 1 Length, Frequency (high)
-;@----------------------------------------------------------------------------
 	add r1,rp2a03ptr,#rp2A03State
 	ldrh r0,[r1,#ch0Frequency-rp2A03State]
 	mov r0,r0,lsl#5
 	rsb r0,r0,#1
 	strh r0,[r1,#ch0Frq-rp2A03State]
 	bx lr
-
+;@----------------------------------------------------------------------------
+_4003W:						;@ Pulse 1 Length, Frequency (high)
+;@----------------------------------------------------------------------------
+	ldrb r1,[rp2a03ptr,#rp2A03Control]
+	tst r1,#1					;@ Ch0 enabled?
+	adr r1,pulseLengthTable
+	ldrbne r0,[r1,r0,lsr#3]
+	strbne r0,[rp2a03ptr,#ch0Length]
+	b _4002W
 ;@----------------------------------------------------------------------------
 _4004W:						;@ Pulse 2 Duty, Volume
 ;@----------------------------------------------------------------------------
@@ -444,15 +495,21 @@ _4005W:						;@ Pulse 2 Sweep unit
 ;@----------------------------------------------------------------------------
 _4006W:						;@ Pulse 2 Frequency (low)
 ;@----------------------------------------------------------------------------
-;@----------------------------------------------------------------------------
-_4007W:						;@ Pulse 2 Length, Frequency (high)
-;@----------------------------------------------------------------------------
 	add r1,rp2a03ptr,#rp2A03State
 	ldrh r0,[r1,#ch1Frequency-rp2A03State]
 	mov r0,r0,lsl#5
 	rsb r0,r0,#1
 	strh r0,[r1,#ch1Frq-rp2A03State]
 	bx lr
+;@----------------------------------------------------------------------------
+_4007W:						;@ Pulse 2 Length, Frequency (high)
+;@----------------------------------------------------------------------------
+	ldrb r1,[rp2a03ptr,#rp2A03Control]
+	tst r1,#2					;@ Ch1 enabled?
+	adr r1,pulseLengthTable
+	ldrbne r0,[r1,r0,lsr#3]
+	strbne r0,[rp2a03ptr,#ch1Length]
+	b _4006W
 
 ;@----------------------------------------------------------------------------
 _4008W:						;@ Triangle Linear counter
@@ -466,15 +523,21 @@ _4008W:						;@ Triangle Linear counter
 ;@----------------------------------------------------------------------------
 _400AW:						;@ Triangle Frequency (low)
 ;@----------------------------------------------------------------------------
-;@----------------------------------------------------------------------------
-_400BW:						;@ Triangle Length, Frequency (high)
-;@----------------------------------------------------------------------------
 	add r1,rp2a03ptr,#rp2A03State
 	ldrh r0,[r1,#ch2Frequency-rp2A03State]
 	mov r0,r0,lsl#5
 	rsb r0,r0,#1
 	strh r0,[r1,#ch2Frq-rp2A03State]
 	bx lr
+;@----------------------------------------------------------------------------
+_400BW:						;@ Triangle Length, Frequency (high)
+;@----------------------------------------------------------------------------
+	ldrb r1,[rp2a03ptr,#rp2A03Control]
+	tst r1,#4					;@ Ch2 enabled?
+	adr r1,pulseLengthTable
+	ldrbne r0,[r1,r0,lsr#3]
+	strbne r0,[rp2a03ptr,#ch2Length]
+	b _400AW
 
 ;@----------------------------------------------------------------------------
 _400CW:						;@ Noise Volume
@@ -502,12 +565,16 @@ _400EW:						;@ Noise Period
 ;@----------------------------------------------------------------------------
 _400FW:						;@ Noise Length
 ;@----------------------------------------------------------------------------
+	ldrb r1,[rp2a03ptr,#rp2A03Control]
+	tst r1,#8					;@ Ch3 enabled?
+	adr r1,pulseLengthTable
+	ldrbne r0,[r1,r0,lsr#3]
+	strbne r0,[rp2a03ptr,#ch3Length]
 	bx lr
 
 ;@----------------------------------------------------------------------------
 _4010W:						;@ DMC IRQ, Loop, Frequency
 ;@----------------------------------------------------------------------------
-	strb r0,[rp2a03ptr,#ch4Frequency]
 	tst r0,#0x80				;@ DMC IRQ enable
 	bxne lr
 	ldrb r0,[rp2a03ptr,#rp2A03Status]
@@ -520,7 +587,6 @@ _4010W:						;@ DMC IRQ, Loop, Frequency
 ;@----------------------------------------------------------------------------
 _4011W:						;@ DMC DAC
 ;@----------------------------------------------------------------------------
-	strb r0,[rp2a03ptr,#ch4Dac]
 	bx lr
 
 ;@----------------------------------------------------------------------------
@@ -563,12 +629,16 @@ _4015W:						;@ Channel control
 	and r0,r0,#0x1F
 	ands r1,r0,#0x01
 	streq r1,[rp2a03ptr,#ch0Volume]
+	strbeq r1,[rp2a03ptr,#ch0Length]
 	ands r1,r0,#0x02
 	streq r1,[rp2a03ptr,#ch1Volume]
+	strbeq r1,[rp2a03ptr,#ch1Length]
 	ands r1,r0,#0x04
 	streq r1,[rp2a03ptr,#ch2Volume]
+	strbeq r1,[rp2a03ptr,#ch2Length]
 	ands r1,r0,#0x08
 	streq r1,[rp2a03ptr,#ch3Volume]
+	strbeq r1,[rp2a03ptr,#ch3Length]
 
 	strb r0,[rp2a03ptr,#rp2A03Control]
 	ldrb r1,[rp2a03ptr,#rp2A03Status]
@@ -592,7 +662,7 @@ _4015W:						;@ Channel control
 ;@----------------------------------------------------------------------------
 _4016W:						;@ $4016: Output 0 write
 ;@----------------------------------------------------------------------------
-	and r0,#0x07
+	and r0,#0x07				;@ Only lowest 3 bits.
 	strb r0,[rp2a03ptr,#output0]
 	ldr pc,[rp2a03ptr,#rp2A03IOWrite]
 ;@----------------------------------------------------------------------------
@@ -600,12 +670,14 @@ _4017W:						;@ $4017: FrameCounter
 ;@----------------------------------------------------------------------------
 	and r0,r0,#0xC0
 	strb r0,[rp2a03ptr,#rp2A03FCntCtr]
-	tst r0,#0x80
-	moveq r1,#4
-	movne r1,#5
+	mov r1,#0
 	strb r1,[rp2a03ptr,#frmCntPeriod]
 	ldr r1,[rp2a03ptr,#frameCntConst]
 	str r1,[rp2a03ptr,#rp2A03FrmCount]
+	stmfd sp!,{r0,lr}
+	tst r0,#0x80
+	blne clockAPULength
+	ldmfd sp!,{r0,lr}
 	tst r0,#0x40
 	bxeq lr
 	ldrb r0,[rp2a03ptr,#rp2A03Status]

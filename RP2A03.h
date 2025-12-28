@@ -53,19 +53,19 @@ typedef struct {
 	u8 ch0Duty;
 	u8 ch0Sweep;
 	u8 ch0Frequency;
-	u8 ch0Length;
+	u8 ch0LenFr;
 	u8 ch1Duty;
 	u8 ch1Sweep;
 	u8 ch1Frequency;
-	u8 ch1Length;
+	u8 ch1LenFr;
 	u8 ch2Duty;
 	u8 ch2Unused;
 	u8 ch2Frequency;
-	u8 ch2Length;
+	u8 ch2LenFr;
 	u8 ch3Duty;
 	u8 ch3Unused;
 	u8 ch3Frequency;
-	u8 ch3Length;
+	u8 ch3LenFr;
 	u8 ch4Frequency;
 	u8 ch4Dac;
 	u8 ch4Address;
@@ -79,6 +79,10 @@ typedef struct {
 	u8 rp2A03Padding1[8];
 	u32 rp2A03DMCCount;
 	u32 rp2A03FrmCount;
+	u8 ch0Length;
+	u8 ch1Length;
+	u8 ch2Length;
+	u8 ch3Length;
 
 	/** For reads 4020-5FFF */
 	u8 (*rp2A03MemRead)(u16 adr);
@@ -91,7 +95,7 @@ typedef struct {
 	/** For 4016 writes */
 	void (*rp2A03IOWrite)(u8 data);
 	u32 frameCntConst; // NTSC=3728, PAL=4156
-	u8 rp2A03Padding2[8];
+	u8 rp2A03Padding2[4];
 
 } RP2A03;
 

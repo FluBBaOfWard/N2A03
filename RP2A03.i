@@ -54,19 +54,19 @@ rp2A03Regs:
 ch0Duty:		.byte 0			;@ 4000
 ch0Sweep:		.byte 0			;@ 4001
 ch0Frequency:	.byte 0			;@ 4002
-ch0Length:		.byte 0			;@ 4003
+ch0LenFr:		.byte 0			;@ 4003
 ch1Duty:		.byte 0			;@ 4004
 ch1Sweep:		.byte 0			;@ 4005
 ch1Frequency:	.byte 0			;@ 4006
-ch1Length:		.byte 0			;@ 4007
+ch1LenFr:		.byte 0			;@ 4007
 ch2Duty:		.byte 0			;@ 4008
 ch2Unused:		.byte 0			;@ 4009
 ch2Frequency:	.byte 0			;@ 400A
-ch2Length:		.byte 0			;@ 400B
+ch2LenFr:		.byte 0			;@ 400B
 ch3Duty:		.byte 0			;@ 400C
 ch3Unused:		.byte 0			;@ 400D
 ch3Frequency:	.byte 0			;@ 400E
-ch3Length:		.byte 0			;@ 400F
+ch3Len:			.byte 0			;@ 400F
 ch4Frequency:	.byte 0			;@ 4010
 ch4Dac:			.byte 0			;@ 4011
 ch4Address:		.byte 0			;@ 4012
@@ -80,6 +80,10 @@ rp2A03FCntCtr:	.byte 0			;@ 4017
 rp2A03Padding1:	.space 8		;@ 4018-401F
 rp2A03DMCCount:	.long 0
 rp2A03FrmCount:	.long 0
+ch0Length:		.byte 0
+ch1Length:		.byte 0
+ch2Length:		.byte 0
+ch3Length:		.byte 0
 rp2A03StateEnd:
 
 rp2A03MemRead:	.long 0			;@ For reads 4020-5FFF
@@ -88,7 +92,7 @@ rp2A03IORead0:	.long 0			;@ For reads 4016
 rp2A03IORead1:	.long 0			;@ For reads 4017
 rp2A03IOWrite:	.long 0			;@ For writes 4016
 frameCntConst:	.long 0			;@ NTSC=3728, PAL=4156
-				.space 8
+				.space 4
 rp2A03End:
 
 rp2A03Size = rp2A03End-rp2A03Start
