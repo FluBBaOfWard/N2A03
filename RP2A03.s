@@ -23,7 +23,7 @@
 	.arm
 
 #ifndef ARM7SOUND
-	.section .itcm
+	.section .itcm, "ax", %progbits
 	.align 2
 ;@----------------------------------------------------------------------------
 ;@ r0  = mix length.
